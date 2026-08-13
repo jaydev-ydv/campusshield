@@ -1,0 +1,1052 @@
+{
+  "generated_at": "2026-08-11T15:16:07.313137+00:00",
+  "seed": 20260811,
+  "data_provenance": {
+    "source": "synthetic",
+    "provenance": "synthetic",
+    "is_real_world_data": false,
+    "generator": "ml/src/synthetic.py",
+    "seed": 20260811,
+    "examples_per_category": 60,
+    "cross_category_noise": 0.25,
+    "caveat": "SYNTHETIC DATA. Not collected from students, not annotated from real incidents. Metrics computed on it validate that the pipeline runs; they are not evidence of real-world performance and the baseline-vs-transformer gap is not informative. See DATASET.md section 4."
+  },
+  "label_space": {
+    "categories": [
+      "HARASS_VERBAL",
+      "HARASS_PHYSICAL",
+      "STALKING",
+      "HARASS_DIGITAL",
+      "INTIMIDATION",
+      "RAGGING",
+      "VOYEURISM",
+      "TRESPASS",
+      "OTHER_INCIDENT",
+      "LIGHTING_POOR",
+      "ISOLATED_AREA",
+      "CCTV_GAP",
+      "BLOCKED_ROUTE",
+      "ACCESS_CONTROL",
+      "TRANSPORT_SAFETY",
+      "OTHER_CONCERN"
+    ],
+    "count": 16,
+    "distribution": {
+      "ACCESS_CONTROL": 60,
+      "BLOCKED_ROUTE": 60,
+      "CCTV_GAP": 60,
+      "HARASS_DIGITAL": 60,
+      "HARASS_PHYSICAL": 60,
+      "HARASS_VERBAL": 60,
+      "INTIMIDATION": 60,
+      "ISOLATED_AREA": 60,
+      "LIGHTING_POOR": 60,
+      "OTHER_CONCERN": 60,
+      "OTHER_INCIDENT": 60,
+      "RAGGING": 60,
+      "STALKING": 60,
+      "TRANSPORT_SAFETY": 60,
+      "TRESPASS": 60,
+      "VOYEURISM": 60
+    }
+  },
+  "split": {
+    "train": 665,
+    "val": 96,
+    "test": 199,
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "stratified": true,
+    "deduplicated": true,
+    "note": "Duplicate and near-duplicate texts are grouped and assigned to a single split, so realised proportions differ slightly from the requested ones."
+  },
+  "leakage_checks": {
+    "passed": true,
+    "checks": [
+      {
+        "check": "split_sizes",
+        "passed": true,
+        "detail": "train=665 val=96 test=199",
+        "offending_sample": []
+      },
+      {
+        "check": "exact_text_overlap",
+        "passed": true,
+        "detail": "No identical text appears in more than one split.",
+        "offending_sample": []
+      },
+      {
+        "check": "near_duplicate_overlap",
+        "passed": true,
+        "detail": "No test example is a near-duplicate (Jaccard >= 0.95) of a training example.",
+        "offending_sample": []
+      },
+      {
+        "check": "example_id_overlap",
+        "passed": true,
+        "detail": "No example id appears in more than one split.",
+        "offending_sample": []
+      },
+      {
+        "check": "label_coverage",
+        "passed": true,
+        "detail": "All 16 test labels appear in training.",
+        "offending_sample": []
+      }
+    ]
+  },
+  "primary_metric": "macro_f1",
+  "models": {
+    "baseline": {
+      "accuracy": 0.8693,
+      "macro_f1": 0.8667,
+      "weighted_f1": 0.8683,
+      "precision_macro": 0.8785,
+      "recall_macro": 0.8669,
+      "per_class": {
+        "HARASS_VERBAL": {
+          "precision": 1.0,
+          "recall": 0.8333,
+          "f1": 0.9091,
+          "support": 12
+        },
+        "HARASS_PHYSICAL": {
+          "precision": 0.8182,
+          "recall": 0.6923,
+          "f1": 0.75,
+          "support": 13
+        },
+        "STALKING": {
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571,
+          "support": 12
+        },
+        "HARASS_DIGITAL": {
+          "precision": 0.9167,
+          "recall": 0.9167,
+          "f1": 0.9167,
+          "support": 12
+        },
+        "INTIMIDATION": {
+          "precision": 0.9333,
+          "recall": 1.0,
+          "f1": 0.9655,
+          "support": 14
+        },
+        "RAGGING": {
+          "precision": 0.8333,
+          "recall": 0.9091,
+          "f1": 0.8696,
+          "support": 11
+        },
+        "VOYEURISM": {
+          "precision": 0.875,
+          "recall": 1.0,
+          "f1": 0.9333,
+          "support": 14
+        },
+        "TRESPASS": {
+          "precision": 0.8333,
+          "recall": 0.8333,
+          "f1": 0.8333,
+          "support": 12
+        },
+        "OTHER_INCIDENT": {
+          "precision": 0.8462,
+          "recall": 0.9167,
+          "f1": 0.88,
+          "support": 12
+        },
+        "LIGHTING_POOR": {
+          "precision": 0.8,
+          "recall": 0.9231,
+          "f1": 0.8571,
+          "support": 13
+        },
+        "ISOLATED_AREA": {
+          "precision": 0.7059,
+          "recall": 1.0,
+          "f1": 0.8276,
+          "support": 12
+        },
+        "CCTV_GAP": {
+          "precision": 1.0,
+          "recall": 0.8462,
+          "f1": 0.9167,
+          "support": 13
+        },
+        "BLOCKED_ROUTE": {
+          "precision": 0.7273,
+          "recall": 0.6667,
+          "f1": 0.6957,
+          "support": 12
+        },
+        "ACCESS_CONTROL": {
+          "precision": 0.8667,
+          "recall": 1.0,
+          "f1": 0.9286,
+          "support": 13
+        },
+        "TRANSPORT_SAFETY": {
+          "precision": 0.9,
+          "recall": 0.75,
+          "f1": 0.8182,
+          "support": 12
+        },
+        "OTHER_CONCERN": {
+          "precision": 1.0,
+          "recall": 0.8333,
+          "f1": 0.9091,
+          "support": 12
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "HARASS_VERBAL",
+          "HARASS_PHYSICAL",
+          "STALKING",
+          "HARASS_DIGITAL",
+          "INTIMIDATION",
+          "RAGGING",
+          "VOYEURISM",
+          "TRESPASS",
+          "OTHER_INCIDENT",
+          "LIGHTING_POOR",
+          "ISOLATED_AREA",
+          "CCTV_GAP",
+          "BLOCKED_ROUTE",
+          "ACCESS_CONTROL",
+          "TRANSPORT_SAFETY",
+          "OTHER_CONCERN"
+        ],
+        "matrix": [
+          [
+            10,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            9,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            9,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            11,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            14,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0,
+            0,
+            10,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            14,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            10,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            11,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            11,
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            8,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            13,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            9,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            10
+          ]
+        ]
+      },
+      "n_samples": 199,
+      "never_predicted": [],
+      "mean_latency_ms": 0.013,
+      "train_seconds": 0.044,
+      "n_features": 1307,
+      "status": "completed",
+      "hyperparameters": {
+        "ngram_range": [
+          1,
+          2
+        ],
+        "min_df": 2,
+        "max_df": 0.9,
+        "sublinear_tf": true,
+        "max_features": 50000,
+        "C": 4.0,
+        "max_iter": 2000,
+        "class_weight": "balanced",
+        "seed": 20260811
+      }
+    },
+    "transformer": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "weighted_f1": 1.0,
+      "precision_macro": 1.0,
+      "recall_macro": 1.0,
+      "per_class": {
+        "HARASS_VERBAL": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "HARASS_PHYSICAL": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 13
+        },
+        "STALKING": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "HARASS_DIGITAL": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "INTIMIDATION": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 14
+        },
+        "RAGGING": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 11
+        },
+        "VOYEURISM": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 14
+        },
+        "TRESPASS": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "OTHER_INCIDENT": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "LIGHTING_POOR": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 13
+        },
+        "ISOLATED_AREA": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "CCTV_GAP": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 13
+        },
+        "BLOCKED_ROUTE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "ACCESS_CONTROL": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 13
+        },
+        "TRANSPORT_SAFETY": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        },
+        "OTHER_CONCERN": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 12
+        }
+      },
+      "confusion_matrix": {
+        "labels": [
+          "HARASS_VERBAL",
+          "HARASS_PHYSICAL",
+          "STALKING",
+          "HARASS_DIGITAL",
+          "INTIMIDATION",
+          "RAGGING",
+          "VOYEURISM",
+          "TRESPASS",
+          "OTHER_INCIDENT",
+          "LIGHTING_POOR",
+          "ISOLATED_AREA",
+          "CCTV_GAP",
+          "BLOCKED_ROUTE",
+          "ACCESS_CONTROL",
+          "TRANSPORT_SAFETY",
+          "OTHER_CONCERN"
+        ],
+        "matrix": [
+          [
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            13,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            14,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            11,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            14,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            13,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            13,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            13,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            12
+          ]
+        ]
+      },
+      "n_samples": 199,
+      "never_predicted": [],
+      "status": "completed",
+      "model": "distilbert-base-uncased",
+      "mean_latency_ms": 13.979,
+      "train_seconds": 123.63,
+      "final_train_loss": 0.4184,
+      "hyperparameters": {
+        "pretrained_model": "distilbert-base-uncased",
+        "max_length": 128,
+        "epochs": 3,
+        "learning_rate": 5e-05,
+        "batch_size": 16,
+        "weight_decay": 0.01,
+        "warmup_ratio": 0.1,
+        "seed": 20260811
+      },
+      "hardware": {
+        "platform": "macOS-26.3-arm64-arm-64bit",
+        "processor": "arm",
+        "python": "3.12.7",
+        "device": "cpu (mps available, not used)"
+      },
+      "torch_version": "2.13.0",
+      "transformers_version": "5.15.0"
+    }
+  },
+  "comparison": {
+    "status": "complete",
+    "primary_metric": "macro_f1",
+    "baseline": 0.8667,
+    "transformer": 1.0,
+    "difference": 0.1333,
+    "winner": "transformer",
+    "summary": "transformer higher by +0.1333 macro_f1",
+    "warnings": [
+      "The transformer scored 1.0000 on macro_f1. A near-perfect score indicates the evaluation task is too easy, not that the model is excellent. On synthetic text this is expected: the generator has a bounded vocabulary and consistent grammar, so a model with enough capacity can separate the classes almost perfectly. Real narratives have typos, ambiguity, and reports that fit two categories or none. This number must not be presented as model accuracy."
+    ],
+    "interpretable_as_model_quality": false,
+    "caveat": "Measured on SYNTHETIC data. This does not establish which model performs better on real campus reports. Templated text rewards the surface lexical cues TF-IDF is built for, so the gap here is not transferable."
+  },
+  "related_report_detection": {
+    "status": "not_evaluated",
+    "reason": "No labelled set of genuinely duplicate or related report pairs exists. Reporting a precision or recall figure without one would be fabrication.",
+    "planned_method": {
+      "annotation": "Two annotators independently label a sample of candidate pairs as duplicate / related / unrelated, with Cohen's kappa reported for agreement.",
+      "sampling": "Pairs drawn stratified across the similarity range, not only the top scores \u2014 sampling only high-similarity pairs measures precision and is blind to everything the system missed.",
+      "metrics": [
+        "precision@k for the top-k returned",
+        "recall against the annotated duplicate set",
+        "a threshold sweep, since duplicate_threshold and related_threshold are the two parameters that actually decide behaviour"
+      ],
+      "operating_point": "Favour recall over precision. A missed duplicate hides a pattern; a false duplicate is a link an authority can dismiss in a moment. The two errors do not cost the same."
+    }
+  },
+  "hotspot_detection": {
+    "status": "not_evaluated",
+    "reason": "No real reports at real campus locations exist \u2014 core.campus_location is empty pending the coordinate survey. Clustering quality cannot be assessed against data that does not exist.",
+    "planned_method": {
+      "ground_truth": "Campus security confirms, for a set of flagged locations, whether the flag corresponded to a real recurring problem.",
+      "metrics": [
+        "precision of flagged hotspots against security's assessment",
+        "lead time: how far ahead of an escalation the flag appeared",
+        "stability: does the same location keep surfacing across windows, or is the detector reacting to noise"
+      ],
+      "counterfactual": "Compare against a naive 'most reports overall' ranking. If the detector adds nothing over counting, it is not earning its place."
+    },
+    "future_direction": "Replace the fixed min_reports floor with a rate comparison against each location's own history, so a busy location is not permanently flagged simply for being busy."
+  },
+  "external_dataset_assessment": {
+    "safecity": {
+      "usable": false,
+      "reason": "No licence; prior permission required and not obtained.",
+      "label_coverage_if_permitted": {
+        "covered_categories": [
+          "HARASS_PHYSICAL",
+          "HARASS_VERBAL"
+        ],
+        "covered_count": 2,
+        "total_categories": 16,
+        "coverage_fraction": 0.125,
+        "uncovered_categories": [
+          "ACCESS_CONTROL",
+          "BLOCKED_ROUTE",
+          "CCTV_GAP",
+          "HARASS_DIGITAL",
+          "INTIMIDATION",
+          "ISOLATED_AREA",
+          "LIGHTING_POOR",
+          "OTHER_CONCERN",
+          "OTHER_INCIDENT",
+          "RAGGING",
+          "STALKING",
+          "TRANSPORT_SAFETY",
+          "TRESPASS",
+          "VOYEURISM"
+        ],
+        "unmapped_external_labels": [
+          "Ogling/Facial Expressions/Staring"
+        ]
+      }
+    }
+  }
+}

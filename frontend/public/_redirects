@@ -1,0 +1,10 @@
+# SPA fallback for static hosting (Netlify, Cloudflare Pages).
+#
+# Without this, a direct navigation or a browser refresh on any route other
+# than "/" — /dashboard, /reports/CS-2026-ABC123, /account — 404s: the host
+# looks for a real file at that path, and this is a client-side-routed React
+# app with no such file. Every unmatched path falls through to index.html
+# instead, and react-router takes it from there.
+#
+# Copied to dist/_redirects unchanged by Vite (anything under public/ is).
+/*   /index.html   200

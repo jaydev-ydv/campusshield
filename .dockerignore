@@ -1,0 +1,36 @@
+# Keeps the build context small and keeps anything gitignored (real
+# credentials, local venvs, caches) from ever reaching a Docker layer, even
+# though backend/Dockerfile only COPYs specific paths and would not pick
+# these up regardless — this is defence in depth, not the only guard.
+
+.git/
+.gitignore
+
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+**/node_modules/
+frontend/dist/
+**/*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+*serviceAccount*.json
+*service-account*.json
+*firebase-adminsdk*.json
+
+ml/ml_env/
+ml/results/
+ml/**/*.pkl
+ml/**/*.pt
+!ml/artifacts/
+
+*.sql.gz
+*.dump
+dumps/

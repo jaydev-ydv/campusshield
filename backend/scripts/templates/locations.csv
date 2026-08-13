@@ -1,0 +1,3 @@
+code,name,location_type,zone_code,latitude,longitude,coordinate_status,coordinate_source,coordinate_captured_at,is_indoor,has_lighting,has_cctv,footfall_band,dispatch_note,is_active
+EXAMPLE-STAGED,Example Staged Location,library,Z-ACAD,,,required,,,true,,,,,false
+EXAMPLE-VERIFIED,Example Verified Location (SYNTHETIC — not a real place),library,Z-ACAD,0.000000,0.000000,verified,SYNTHETIC EXAMPLE — not a real field survey,2026-01-01T09:00:00+05:30,true,true,false,medium,Enter via the main door,true

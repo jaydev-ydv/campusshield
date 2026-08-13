@@ -1,0 +1,29 @@
+CampusShield database migrations (Alembic)
+
+Operational instructions live in ../DATABASE_SETUP.md.
+Schema design and rationale live in ../DATABASE.md.
+
+    .venv/bin/alembic upgrade head      apply
+    .venv/bin/alembic downgrade base    roll back everything
+    ./scripts/test_migration.sh         full test from an empty database
+
+Layout
+    env.py                          URL resolution; Flask-Migrate compatible
+    script.py.mako                  template for new revisions
+    versions/0001_initial_schema.py  8 schemas, 24 enums, 34 tables, 1 view,
+                                    18 trigger functions, 19 triggers
+
+Two things to know before editing anything here:
+
+1. Autogenerate is not used and target_metadata is None. The schema is
+   hand-written DDL — cross-schema foreign keys, partial unique indexes,
+   PL/pgSQL triggers, RLS, and CHECK constraints that SQLAlchemy cannot model.
+   --autogenerate cannot see any of them and will propose dropping them.
+
+2. Never edit an applied migration; add a new one. 0001 has run against a
+   database somewhere, and changing it makes that database's recorded history
+   a lie.
+
+This directory is the same layout Flask-Migrate manages. When the backend
+exists, `Migrate(app, db)` picks it up and `flask db upgrade` works with no
+changes to any file here.

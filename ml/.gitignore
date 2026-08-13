@@ -1,0 +1,21 @@
+# Datasets and model artifacts are not committed.
+#
+# Raw datasets: licence terms may forbid redistribution, and a corpus of
+# personal accounts of harassment should not be duplicated into a git history
+# where it cannot be deleted.
+data/*
+!data/.gitkeep
+!data/README.md
+
+# Trained models and vectorisers — regenerable from `python -m ml.src.evaluate`,
+# and a fine-tuned transformer is hundreds of megabytes.
+artifacts/*
+!artifacts/.gitkeep
+
+# Results ARE committed: they are the deliverable, and a diff on them is how a
+# regression in the pipeline becomes visible.
+!results/
+
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/

@@ -1,0 +1,53 @@
+# CampusShield backend — Phase 1
+#
+# Migration-layer dependencies (alembic, psycopg, python-dotenv) are pinned in
+# ../requirements-db.txt and are also needed to run the tests, which apply the
+# migration to a fresh database:
+#
+#   pip install -r requirements-db.txt -r backend/requirements.txt
+
+Flask==3.1.3
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.51
+psycopg[binary]==3.3.4
+marshmallow==4.3.1
+python-dotenv==1.2.2
+
+# Firebase Authentication. Imported lazily and only by app/security/firebase.py,
+# so the test suite runs with AUTH_PROVIDER=dev without touching it.
+firebase-admin==7.5.0
+
+# CORS for the React frontend. Explicit origin list, never a wildcard.
+Flask-Cors==6.0.5
+
+# Image validation and metadata stripping. Every uploaded image is decoded and
+# rebuilt from raw pixels before storage, which is what removes EXIF/GPS, XMP,
+# PNG text chunks and the embedded EXIF thumbnail.
+Pillow==12.3.0
+
+# Firebase Cloud Storage. Pulled in by firebase-admin already; pinned here
+# because app/storage/firebase_provider.py depends on it directly.
+google-cloud-storage==3.13.1
+
+# Serving the classification model. scikit-learn ships joblib; both are pinned
+# because app/ml/ imports them directly. The research pipeline in ml/ has its own
+# heavier dependencies (torch, transformers) which the API deliberately does not
+# load — see scripts/export_baseline_model.py for why the baseline is served.
+scikit-learn==1.9.0
+joblib==1.5.3
+numpy==2.5.2
+
+# Request-rate abuse controls. Keyed by remote address; see
+# app/security/rate_limit.py for the storage-backend and proxy-address
+# caveats that determine whether it is correct behind a load balancer.
+Flask-Limiter==4.1.1
+
+# Development and test
+pytest==9.1.1
+ruff==0.16.2
+mypy==2.3.0
+
+# Production WSGI server — see run.py's own docstring for why Flask's
+# built-in server is dev-only. Run with:
+#   gunicorn 'app:create_app()' --bind 0.0.0.0:5000
+gunicorn==26.0.0

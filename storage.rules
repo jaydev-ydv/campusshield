@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// CampusShield Firebase Storage Rules.
+//
+// Deny every client request, unconditionally. The Firebase Admin SDK — which
+// is all backend/app/storage/firebase_provider.py ever uses — bypasses these
+// rules entirely, by design: evidence bytes reach the bucket only through the
+// Flask backend, after Flask's own authorisation check (`can_view_report`)
+// has already run. These rules are a second, independent guarantee that no
+// browser can ever reach the bucket directly, even if a client somehow
+// learned the bucket name and an object path. There is no legitimate way for
+// a client to learn either today — the backend never returns a bucket name,
+// a storage path, or a public/signed URL (see StorageProvider's deliberate
+// absence of a public_url() method) — but the rule does not depend on that
+// holding.
+//
+// A bucket left at Firebase's own test-mode default (`allow read, write: if
+// true`, expiring after 30 days) is publicly readable and writable by anyone
+// who has the bucket name. Deploy this file before the bucket carries
+// anything real:
+//
+//   firebase deploy --only storage --project <your-firebase-project-id>
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

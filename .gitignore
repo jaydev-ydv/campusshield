@@ -1,0 +1,40 @@
+# Secrets — never commit. Use .env.example as the template.
+.env
+.env.*
+!.env.example
+
+# Firebase service-account keys. These carry a private key that can mint tokens
+# for any user in the project; the safest place for one is outside the repo.
+*serviceAccount*.json
+*service-account*.json
+*firebase-adminsdk*.json
+firebase-key*.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Database dumps — may contain real report narratives
+*.sql.gz
+*.dump
+dumps/
+
+# ML artifacts
+*.pkl
+*.joblib
+models/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code local settings — machine-specific tool permissions, not
+# shared project configuration.
+.claude/

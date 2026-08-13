@@ -1,0 +1,11 @@
+# CampusShield — database migration layer only.
+#
+# Deliberately minimal.  Flask, Flask-SQLAlchemy and Flask-Migrate are NOT listed
+# here: no backend exists yet, and installing an unused web framework to run DDL
+# would be noise.  See DATABASE_SETUP.md §8 for the (small) change when the
+# backend arrives — Flask-Migrate reuses this same migrations/ directory.
+
+alembic==1.19.1
+SQLAlchemy==2.0.51
+psycopg[binary]==3.3.4
+python-dotenv==1.2.2

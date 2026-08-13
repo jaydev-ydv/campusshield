@@ -1,0 +1,59 @@
+[project]
+name = "campusshield-backend"
+version = "0.1.0"
+description = "CampusShield API — Phase 1"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "B008",   # function call in default argument — not a pattern used here
+    "RUF012", # mutable class attrs need ClassVar — noisy with marshmallow Meta
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "E402"]
+# `from sqlalchemy.dialects.postgresql import UUID as PgUUID` is the conventional
+# alias — it disambiguates the column type from the stdlib `uuid.UUID` used for
+# values in the same modules.
+"app/models/*" = ["N811"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = "^(tests/|\\.venv/)"
+# Deliberately not --strict. The value here is catching real type errors in the
+# service and repository layers, not annotating every Flask view signature.
+
+[[tool.mypy.overrides]]
+module = ["flask_sqlalchemy.*", "marshmallow.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Pillow's stubs reach into numpy, whose own stubs use 3.12-only syntax. Parsing
+# them under the declared 3.10 target aborts the run before any application code
+# is checked. Nothing in app/ imports numpy, so skipping it costs no coverage.
+module = ["numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+markers = [
+    "privacy: asserts a privacy guarantee; a failure here is not an ordinary test failure",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

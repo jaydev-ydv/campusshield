@@ -1,0 +1,115 @@
+# CampusShield ML — evaluation configuration.
+#
+# Everything the pipeline does is decided here rather than in code, so a run can
+# be reproduced from this file plus a git commit.
+
+seed: 20260811
+
+dataset:
+  # synthetic | safecity | manual
+  #
+  # `synthetic` is the only value currently usable. `safecity` requires written
+  # permission from the SafeCity moderators, which has NOT been obtained — see
+  # DATASET.md §2.1. The loader refuses to run without an explicit acknowledgement
+  # in this file.
+  source: synthetic
+
+  # Stamped onto every artifact. The pipeline refuses to emit a result without it.
+  provenance: synthetic
+
+  synthetic:
+    # Per category. 16 categories x 60 = 960 examples.
+    examples_per_category: 60
+    # Proportion of examples given vocabulary borrowed from a different category,
+    # so the task is not separable by a handful of keywords. Without this a
+    # bag-of-words model scores ~100% and the comparison measures nothing.
+    cross_category_noise: 0.25
+
+  safecity:
+    path: data/safecity
+    # Must be set to true, by a human, after permission is obtained and recorded
+    # in DATASET.md. The loader raises otherwise.
+    permission_obtained: false
+
+split:
+  test_size: 0.2
+  val_size: 0.1
+  stratify: true
+  # Exact-duplicate and near-duplicate texts are grouped and assigned to a single
+  # split. Two identical narratives either side of the boundary would let the
+  # model memorise a test answer during training.
+  deduplicate: true
+  near_duplicate_threshold: 0.95
+
+preprocessing:
+  lowercase: true
+  strip_urls: true
+  strip_digits: false
+  min_token_length: 1
+
+baseline:
+  name: tfidf-logreg
+  vectorizer:
+    ngram_range: [1, 2]
+    min_df: 2
+    max_df: 0.9
+    sublinear_tf: true
+    max_features: 50000
+  classifier:
+    # Logistic Regression as the phase brief specifies. It gives calibrated
+    # probabilities, which the confidence column in ml.report_classification
+    # expects; LinearSVC would need a separate calibration step.
+    C: 4.0
+    max_iter: 2000
+    # The category distribution is uniform in the synthetic corpus but will not
+    # be in real data, where OTHER_* and the rarer incident types dominate.
+    class_weight: balanced
+
+transformer:
+  name: distilbert-tfidf-comparison
+  # Chosen for an undergraduate prototype on CPU: 6 layers, 66M parameters,
+  # ~40% smaller and ~60% faster than BERT-base at ~97% of its GLUE score.
+  # Fine-tuning something larger would cost hours and prove nothing extra.
+  pretrained_model: distilbert-base-uncased
+  # A far smaller stand-in used by the test suite so tests never download 250MB.
+  test_pretrained_model: hf-internal-testing/tiny-random-DistilBertModel
+  max_length: 128
+  epochs: 3
+  learning_rate: 5.0e-5
+  batch_size: 16
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  # When torch/transformers are unavailable, the pipeline records the transformer
+  # arm as "not run" rather than inventing numbers.
+  skip_if_unavailable: true
+
+evaluation:
+  # Stated explicitly, as the brief requires. Macro F1 rather than accuracy:
+  # the label space is imbalanced in real use, and accuracy would let a model
+  # look good by predicting the common categories and ignoring the rare ones —
+  # which for this project are often the ones that matter most.
+  primary_metric: macro_f1
+  results_dir: results
+  artifacts_dir: artifacts
+
+similarity:
+  # Sentence embeddings would be used in production; the offline prototype uses
+  # the TF-IDF space so the pipeline has no extra model dependency. The interface
+  # is identical either way.
+  backend: tfidf
+  # Above this, two reports are proposed as describing the same event.
+  duplicate_threshold: 0.88
+  # Above this, they are proposed as related.
+  related_threshold: 0.72
+  top_k: 5
+  # Reports more than this many days apart are not considered duplicates however
+  # similar the text: the same hazard reported in March and October is a
+  # recurrence, not a duplicate.
+  duplicate_max_days_apart: 14
+
+hotspots:
+  window_days: 30
+  min_reports: 3
+  # Mirrors the k-anonymity threshold on the public map. A "hotspot" of one
+  # report is not a pattern, and publishing it can identify the reporter.
+  min_reports_for_publication: 3

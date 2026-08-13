@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+
+/* CampusShield design tokens.
+ *
+ * The palette is deliberately calm. This is a tool people reach for when
+ * something has gone wrong, and an interface that shouts makes that worse:
+ * alarm colours, sirens and warning triangles raise the cost of opening the app
+ * at exactly the moment someone is deciding whether to bother.
+ *
+ * Teal reads as institutional and steady without reading as clinical. Red exists
+ * in one place only — genuine error states — so that when it appears it means
+ * something. Emergency reporting is a calm, clearly-labelled choice, not a red
+ * panic button.
+ */
+@theme {
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+  --color-brand-950: #042f2e;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-800 font-sans antialiased;
+  }
+
+  /* A visible focus ring on every interactive element. Keyboard and switch
+   * users navigate by it, and removing it is the single most common
+   * accessibility regression in a design system. */
+  :focus-visible {
+    @apply outline-brand-600 outline-2 outline-offset-2;
+  }
+
+  /* Respect a stated preference for reduced motion rather than assuming
+   * animation is harmless. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Visible only when focused — the first stop for a keyboard user on any page. */
+  .skip-link {
+    @apply bg-brand-700 sr-only rounded-md px-4 py-2 text-white focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50;
+  }
+}
