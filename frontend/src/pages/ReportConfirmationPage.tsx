@@ -184,9 +184,9 @@ function AccessTokenPanel({ token }: { token: string }) {
       </div>
 
       <p className="text-brand-800 mt-4 text-xs leading-relaxed">
-        This report remains unlinked to your account on the server. A browser-local shortcut may
-        appear in My reports so you can check its status, but nobody can contact you about it.
-        That is what keeps it anonymous.
+        This report remains unlinked to your account on the server. A browser-local shortcut
+        may appear in My reports so you can check its status, but nobody can contact you about
+        it. That is what keeps it anonymous.
       </p>
     </Card>
   )

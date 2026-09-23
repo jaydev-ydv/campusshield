@@ -120,7 +120,9 @@ describe('ReportConfirmationPage — anonymous', () => {
 
   it('explains that the report stays unlinked on the server', async () => {
     renderConfirmation({ result: ANONYMOUS })
-    expect(await screen.findByText(/remains unlinked to your account on the server/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/remains unlinked to your account on the server/i),
+    ).toBeInTheDocument()
   })
 
   it('does not link to the reports list, which cannot contain it', async () => {

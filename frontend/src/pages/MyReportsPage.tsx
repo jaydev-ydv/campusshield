@@ -109,8 +109,8 @@ export function MyReportsPage() {
 
         {data && (
           <Alert tone="info" title="Anonymous reports are not listed here">
-            Anonymous reports remain unlinked to your account on the server. Saved entries below
-            are stored only in this browser so you can reopen the status check.
+            Anonymous reports remain unlinked to your account on the server. Saved entries
+            below are stored only in this browser so you can reopen the status check.
           </Alert>
         )}
 
@@ -138,7 +138,9 @@ export function MyReportsPage() {
                           </p>
                           <p className="text-ink-600 mt-1 text-sm">Anonymous report</p>
                         </div>
-                        <span className="text-brand-700 text-sm font-medium">Check status</span>
+                        <span className="text-brand-700 text-sm font-medium">
+                          Check status
+                        </span>
                       </div>
                     </Card>
                   </Link>

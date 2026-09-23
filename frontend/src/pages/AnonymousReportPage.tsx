@@ -54,7 +54,11 @@ export function AnonymousReportPage() {
       }
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
-        {error && <Alert tone="error" title="Could not load report">{error}</Alert>}
+        {error && (
+          <Alert tone="error" title="Could not load report">
+            {error}
+          </Alert>
+        )}
 
         <Input
           label="Report reference"
@@ -92,8 +96,8 @@ export function AnonymousReportPage() {
             {STATUS_LABELS[report.status]}
           </p>
           <p className="text-ink-500 mt-4 text-xs leading-relaxed">
-            Status updates are shown here when the response team records them. Anonymous reports
-            do not send notifications.
+            Status updates are shown here when the response team records them. Anonymous
+            reports do not send notifications.
           </p>
         </Card>
       )}
