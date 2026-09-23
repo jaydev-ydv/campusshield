@@ -580,6 +580,13 @@ export function createApi(client: ApiClient) {
      */
     report: (publicRef: string) => client.get<ReportDetail>(`/reports/${publicRef}`),
 
+    /** Check an anonymous report with its reference and one-time access code. */
+    anonymousReport: (publicRef: string, accessToken: string) =>
+      client.get<ReportDetail>(`/reports/${publicRef}`, {
+        auth: false,
+        headers: { 'X-Report-Token': accessToken },
+      }),
+
     /* ---------------------------------------------------------------- */
     /* Responder plane. Every call below is refused server-side for a    */
     /* student, whatever the browser believes about its own role.        */

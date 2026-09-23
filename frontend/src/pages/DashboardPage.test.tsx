@@ -182,4 +182,153 @@ describe('DashboardPage', () => {
     const red = document.body.querySelectorAll('[class*="red-"]')
     expect(red.length).toBe(0)
   })
+
+  it('renders operational responder dashboard for security role', async () => {
+    setCurrentUser(makeUser({ email: 'security@example.edu' }))
+    const fetchStub = createFetchStub(
+      signedInRoutes({
+        '/auth/me': {
+          body: {
+            user_id: '22222222-2222-2222-2222-222222222222',
+            email: 'security@example.edu',
+            role: 'security',
+            is_active: true,
+            display_name: 'Officer Smith',
+          },
+        },
+        '/incidents': {
+          body: {
+            items: [
+              {
+                public_ref: 'SEC-101',
+                report_kind: 'incident',
+                submission_mode: 'identified',
+                category: { category_id: 1, code: 'SEC_TRESPASS', label: 'Trespassing' },
+                location: {
+                  location_id: 1,
+                  code: 'MAIN-GATE',
+                  name: 'Main Gate',
+                  latitude: null,
+                  longitude: null,
+                  is_mapped: false,
+                  is_synthetic: false,
+                },
+                location_hint: null,
+                occurred_at: new Date().toISOString(),
+                submitted_at: new Date().toISOString(),
+                is_emergency: true,
+                is_ongoing: true,
+                status: 'submitted',
+                reporter_contactable: true,
+                evidence_count: 0,
+                location_signal: null,
+                dispatch: {
+                  dispatch_id: 'disp-1',
+                  state: 'pending',
+                  raised_at: new Date().toISOString(),
+                  acknowledged_at: null,
+                  dispatched_at: null,
+                  on_scene_at: null,
+                  closed_at: null,
+                  responder_note: null,
+                },
+                is_assigned: false,
+              },
+            ],
+            pagination: { total: 1, limit: 100, offset: 0, returned: 1 },
+            mapping_available: false,
+          },
+        },
+      }),
+    )
+
+    renderWithAuth(<DashboardPage />, { route: '/dashboard', fetchImpl: fetchStub })
+
+    expect(
+      await screen.findByRole('heading', { name: /security overview/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /take action toward incidents/i }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('#SEC-101')).toBeInTheDocument()
+    expect(screen.getByText('Active incidents')).toBeInTheDocument()
+    expect(screen.getByText('Emergency alerts')).toBeInTheDocument()
+    expect(screen.getByText('Trespassing')).toBeInTheDocument()
+
+    // Student CTA is absent
+    expect(screen.queryByText(/report a safety concern/i)).not.toBeInTheDocument()
+  })
+
+  it('renders confidential case dashboard for ICC role', async () => {
+    setCurrentUser(makeUser({ email: 'icc@example.edu' }))
+    const fetchStub = createFetchStub(
+      signedInRoutes({
+        '/auth/me': {
+          body: {
+            user_id: '33333333-3333-3333-3333-333333333333',
+            email: 'icc@example.edu',
+            role: 'icc',
+            is_active: true,
+            display_name: 'Dr. Committee',
+          },
+        },
+        '/incidents': {
+          body: {
+            items: [],
+            pagination: { total: 0, limit: 100, offset: 0, returned: 0 },
+            mapping_available: false,
+          },
+        },
+      }),
+    )
+
+    renderWithAuth(<DashboardPage />, { route: '/dashboard', fetchImpl: fetchStub })
+
+    expect(await screen.findByRole('heading', { name: /icc overview/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /take action toward incidents/i }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText(/no open incidents in your queue/i)).toBeInTheDocument()
+    expect(screen.getByText('Active cases')).toBeInTheDocument()
+    expect(screen.getByText('Under review')).toBeInTheDocument()
+
+    // Student CTA is absent
+    expect(screen.queryByText(/report a safety concern/i)).not.toBeInTheDocument()
+  })
+
+  it('renders operational oversight dashboard for admin role', async () => {
+    setCurrentUser(makeUser({ email: 'admin@example.edu' }))
+    const fetchStub = createFetchStub(
+      signedInRoutes({
+        '/auth/me': {
+          body: {
+            user_id: '44444444-4444-4444-4444-444444444444',
+            email: 'admin@example.edu',
+            role: 'admin',
+            is_active: true,
+            display_name: 'Admin User',
+          },
+        },
+        '/incidents': {
+          body: {
+            items: [],
+            pagination: { total: 0, limit: 100, offset: 0, returned: 0 },
+            mapping_available: false,
+          },
+        },
+      }),
+    )
+
+    renderWithAuth(<DashboardPage />, { route: '/dashboard', fetchImpl: fetchStub })
+
+    expect(await screen.findByRole('heading', { name: /admin overview/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /take action toward incidents/i }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText(/no open incidents in your queue/i)).toBeInTheDocument()
+    expect(screen.getByText('Cases under review')).toBeInTheDocument()
+
+    // Student CTA is absent
+    expect(screen.queryByText(/report a safety concern/i)).not.toBeInTheDocument()
+  })
 })

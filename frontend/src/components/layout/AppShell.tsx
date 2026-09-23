@@ -36,22 +36,33 @@ function Wordmark({ compact = false }: { compact?: boolean }) {
   )
 }
 
-const NAV_LINKS = [
+interface NavLinkItem {
+  to: string
+  label: string
+  end: boolean
+}
+
+/** Student primary navigation: Overview, Report, My reports, Account. */
+const STUDENT_NAV_LINKS: readonly NavLinkItem[] = [
   { to: '/dashboard', label: 'Overview', end: true },
   { to: '/report', label: 'Report', end: false },
   { to: '/reports', label: 'My reports', end: true },
   { to: '/account', label: 'Account', end: true },
-] as const
+]
 
-/** The responder link. Shown to staff, hidden from students.
- *
- *  Tidiness, not access control — every endpoint behind it refuses a student
- *  server-side, and the page itself explains why when a student reaches it
- *  directly. */
-const RESPONDER_LINK = { to: '/incidents', label: 'Incidents', end: true } as const
+/** Staff primary navigation (Security, ICC, Admin): Overview, Incidents, Account.
+ *  Student-only options (Report, My reports) are excluded. */
+const STAFF_NAV_LINKS: readonly NavLinkItem[] = [
+  { to: '/dashboard', label: 'Overview', end: true },
+  { to: '/incidents', label: 'Incidents', end: true },
+  { to: '/account', label: 'Account', end: true },
+]
 
-function navLinksFor(role: string | undefined) {
-  return role && role !== 'student' ? [...NAV_LINKS, RESPONDER_LINK] : NAV_LINKS
+function navLinksFor(role: string | undefined): readonly NavLinkItem[] {
+  if (role && role !== 'student') {
+    return STAFF_NAV_LINKS
+  }
+  return STUDENT_NAV_LINKS
 }
 
 function RoleBadge({ role }: { role: keyof typeof ROLE_LABELS }) {
@@ -150,6 +161,27 @@ export function Navigation() {
               {link.label}
             </NavLink>
           ))}
+          {account?.role === 'student' && (
+            <button
+              type="button"
+              onClick={() => {
+                const sosBtn = document.querySelector<HTMLButtonElement>(
+                  '[aria-label*="emergency SOS"]',
+                )
+                sosBtn?.focus()
+                sosBtn?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+              aria-label="Emergency SOS trigger"
+              title="Emergency SOS"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+              </span>
+              SOS
+            </button>
+          )}
           {account && (
             <div className="flex items-center gap-3">
               <NotificationBell />
@@ -200,6 +232,31 @@ export function Navigation() {
 
       {menuOpen && account && (
         <div id="mobile-menu" className="border-ink-200 border-t bg-white px-4 py-3 sm:hidden">
+          {account.role === 'student' && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                const sosBtn = document.querySelector<HTMLButtonElement>(
+                  '[aria-label*="emergency SOS"]',
+                )
+                sosBtn?.focus()
+                sosBtn?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="mb-2.5 flex w-full items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+                </span>
+                Emergency SOS
+              </span>
+              <span className="rounded bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-900">
+                Hold button
+              </span>
+            </button>
+          )}
           <nav aria-label="Sections" className="mb-4 flex flex-col gap-1">
             {links.map((link) => (
               <NavLink
@@ -239,6 +296,7 @@ export function Navigation() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { account } = useAuth()
   return (
     <div className="flex min-h-dvh flex-col">
       <a href="#main" className="skip-link">
@@ -249,7 +307,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <SiteFooter />
-      <SosButton />
+      {account?.role === 'student' && <SosButton />}
     </div>
   )
 }

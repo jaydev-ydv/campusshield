@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
@@ -32,6 +32,15 @@ const ANONYMOUS = {
   access_token: 'b'.repeat(32),
   access_token_notice: 'Save this code now.',
 }
+
+const originalLocalStorage = window.localStorage
+
+afterEach(() => {
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: originalLocalStorage,
+  })
+})
 
 function renderConfirmation(state: unknown) {
   setCurrentUser(makeUser())
@@ -109,9 +118,9 @@ describe('ReportConfirmationPage — anonymous', () => {
     expect(await screen.findByText(/cannot be recovered/i)).toBeInTheDocument()
   })
 
-  it('explains why the report will not appear in the reports list', async () => {
+  it('explains that the report stays unlinked on the server', async () => {
     renderConfirmation({ result: ANONYMOUS })
-    expect(await screen.findByText(/will not appear in your reports/i)).toBeInTheDocument()
+    expect(await screen.findByText(/remains unlinked to your account on the server/i)).toBeInTheDocument()
   })
 
   it('does not link to the reports list, which cannot contain it', async () => {
@@ -145,12 +154,20 @@ describe('ReportConfirmationPage — the token is shown once', () => {
     expect(screen.queryByText(/save this code now/i)).not.toBeInTheDocument()
   })
 
-  it('never writes the token to storage', async () => {
+  it('saves the token only in browser-local storage', async () => {
+    const values = new Map<string, string>()
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    })
+
     renderConfirmation({ result: ANONYMOUS })
     await screen.findByText(ANONYMOUS.access_token)
 
-    expect(JSON.stringify(localStorage)).not.toContain(ANONYMOUS.access_token)
-    expect(JSON.stringify(sessionStorage)).not.toContain(ANONYMOUS.access_token)
+    expect(values.get('campusshield-anonymous-reports')).toContain(ANONYMOUS.access_token)
   })
 
   it('never puts the token in the URL', async () => {

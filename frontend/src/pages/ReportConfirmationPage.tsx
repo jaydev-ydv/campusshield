@@ -1,23 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
 import { AppShell } from '../components/layout/AppShell'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import type { ReportSubmissionResult } from '../lib/api'
+import { saveAnonymousReport } from '../lib/anonymousReports'
 
 /**
  * Confirmation, shown once.
  *
- * The submission result arrives through router state and is never persisted.
- * For an anonymous report that is the whole point: the access token is issued
- * once, only its SHA-256 reaches the database, and writing it to localStorage or
- * a query string would create exactly the recoverable copy the mechanism exists
- * to avoid. A refresh losing it is correct behaviour, not a bug.
+ * The submission result arrives through router state. Anonymous report access
+ * remains unlinked on the server; the reference and token are optionally saved
+ * in this browser only so the student can reopen the status checker later.
  */
 export function ReportConfirmationPage() {
   const location = useLocation()
   const result = (location.state as { result?: ReportSubmissionResult } | null)?.result ?? null
+
+  const anonymous = result?.submission_mode === 'anonymous'
+
+  useEffect(() => {
+    if (anonymous && result.access_token) {
+      saveAnonymousReport({
+        public_ref: result.public_ref,
+        access_token: result.access_token,
+        submitted_at: result.submitted_at,
+      })
+    }
+  }, [anonymous, result])
 
   if (!result) {
     return (
@@ -44,8 +55,6 @@ export function ReportConfirmationPage() {
       </AppShell>
     )
   }
-
-  const anonymous = result.submission_mode === 'anonymous'
 
   return (
     <AppShell>
@@ -120,6 +129,11 @@ export function ReportConfirmationPage() {
         </Card>
 
         <div className="flex flex-wrap justify-center gap-3">
+          {anonymous && (
+            <Link to="/check-report">
+              <Button variant="secondary">Check status later</Button>
+            </Link>
+          )}
           {!anonymous && (
             <Link to="/reports">
               <Button variant="secondary">View my reports</Button>
@@ -170,8 +184,9 @@ function AccessTokenPanel({ token }: { token: string }) {
       </div>
 
       <p className="text-brand-800 mt-4 text-xs leading-relaxed">
-        Because this report is not linked to your account, it will not appear in your reports
-        list, and nobody can contact you about it. That is what keeps it anonymous.
+        This report remains unlinked to your account on the server. A browser-local shortcut may
+        appear in My reports so you can check its status, but nobody can contact you about it.
+        That is what keeps it anonymous.
       </p>
     </Card>
   )

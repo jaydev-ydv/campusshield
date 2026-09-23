@@ -7,8 +7,10 @@ import { Alert } from './ui/Alert'
 import { Button } from './ui/Button'
 import { LoadingState } from './ui/Spinner'
 
+import type { UserRole } from '../lib/api'
+
 /**
- * Gates a route on authentication state.
+ * Gates a route on authentication state and optional role permissions.
  *
  * **This is not a security boundary and must never be treated as one.** Anything
  * shipped to a browser can be bypassed by editing it. The backend re-checks
@@ -18,6 +20,11 @@ import { LoadingState } from './ui/Spinner'
  * *permitted* — it exists so a signed-out user sees a sign-in page instead of an
  * empty dashboard flashing 401 errors.
  *
+ * When `allowedRoles` is passed, users with other roles are smoothly redirected
+ * to their primary operational portal rather than hitting a dead end:
+ * - Staff members navigating to student reporting routes are redirected to `/incidents`.
+ * - Students navigating to responder queues are redirected to `/dashboard`.
+ *
  * The `needs-provisioning` branch is the one worth reading. A user can be
  * genuinely signed in to Firebase and have no application account: that is the
  * state between creating a credential and provisioning a row, and it is also
@@ -25,8 +32,14 @@ import { LoadingState } from './ui/Spinner'
  * sign in would be a loop — they are already signed in — so the state is
  * resolved here instead.
  */
-export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { status, error, provision, logout } = useAuth()
+export function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: ReactNode
+  allowedRoles?: UserRole[]
+}) {
+  const { status, error, provision, logout, account } = useAuth()
   const location = useLocation()
 
   if (status === 'initialising') {
@@ -55,6 +68,11 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (status === 'needs-provisioning') {
     return <ProvisioningGate onProvision={provision} onSignOut={logout} />
+  }
+
+  if (allowedRoles && account && !allowedRoles.includes(account.role)) {
+    const destination = account.role === 'student' ? '/dashboard' : '/incidents'
+    return <Navigate to={destination} replace />
   }
 
   return <>{children}</>

@@ -6,6 +6,7 @@ import { ProtectedRoute, PublicOnlyRoute } from './components/ProtectedRoute'
 import { AuthLayout } from './components/layout/AppShell'
 import { Button } from './components/ui/Button'
 import { AccountPage } from './pages/AccountPage'
+import { AnonymousReportPage } from './pages/AnonymousReportPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { EmergencyConfirmationPage } from './pages/EmergencyConfirmationPage'
 import { IncidentsPage } from './pages/IncidentsPage'
@@ -61,6 +62,7 @@ export function AppRoutes() {
           </PublicOnlyRoute>
         }
       />
+      <Route path="/check-report" element={<AnonymousReportPage />} />
       <Route
         path="/dashboard"
         element={
@@ -69,29 +71,27 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Student-only reporting routes */}
       <Route
         path="/report"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}>
             <ReportPage />
           </ProtectedRoute>
         }
       />
-      {/* Responder-only in practice, but not gated here: the page explains
-          itself to a student, and every endpoint behind it refuses them
-          server-side. A route guard is usability, never enforcement. */}
       <Route
-        path="/incidents"
+        path="/reports"
         element={
-          <ProtectedRoute>
-            <IncidentsPage />
+          <ProtectedRoute allowedRoles={['student']}>
+            <MyReportsPage />
           </ProtectedRoute>
         }
       />
       <Route
         path="/reports/:ref"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}>
             <ReportDetailPage />
           </ProtectedRoute>
         }
@@ -99,7 +99,7 @@ export function AppRoutes() {
       <Route
         path="/report/submitted"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}>
             <ReportConfirmationPage />
           </ProtectedRoute>
         }
@@ -107,16 +107,17 @@ export function AppRoutes() {
       <Route
         path="/emergency/submitted"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}>
             <EmergencyConfirmationPage />
           </ProtectedRoute>
         }
       />
+      {/* Staff responder portal (Security, ICC, Admin) */}
       <Route
-        path="/reports"
+        path="/incidents"
         element={
-          <ProtectedRoute>
-            <MyReportsPage />
+          <ProtectedRoute allowedRoles={['security', 'icc', 'admin']}>
+            <IncidentsPage />
           </ProtectedRoute>
         }
       />

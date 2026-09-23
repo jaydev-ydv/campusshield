@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card'
 import { ErrorState } from '../components/ui/ErrorState'
 import { LoadingState } from '../components/ui/Spinner'
 import { STATUS_LABELS, type Paginated, type ReportSummary } from '../lib/api'
+import { loadSavedAnonymousReports, type SavedAnonymousReport } from '../lib/anonymousReports'
 
 /**
  * The caller's own identified reports.
@@ -24,6 +25,7 @@ export function MyReportsPage() {
   const [data, setData] = useState<Paginated<ReportSummary> | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [nonce, setNonce] = useState(0)
+  const [anonymousReports] = useState<SavedAnonymousReport[]>(loadSavedAnonymousReports)
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 
@@ -107,9 +109,43 @@ export function MyReportsPage() {
 
         {data && (
           <Alert tone="info" title="Anonymous reports are not listed here">
-            A report you submitted anonymously is not linked to your account, so it cannot
-            appear in this list. Use the code you were given at the time to check its status.
+            Anonymous reports remain unlinked to your account on the server. Saved entries below
+            are stored only in this browser so you can reopen the status check.
           </Alert>
+        )}
+
+        {anonymousReports.length > 0 && (
+          <section aria-labelledby="anonymous-reports-heading">
+            <h2
+              id="anonymous-reports-heading"
+              className="text-ink-900 mb-3 text-lg font-semibold"
+            >
+              Saved anonymous reports
+            </h2>
+            <ul className="space-y-3">
+              {anonymousReports.map((report) => (
+                <li key={report.public_ref}>
+                  <Link
+                    to="/check-report"
+                    state={{ reference: report.public_ref, accessToken: report.access_token }}
+                    className="block"
+                  >
+                    <Card className="hover:border-brand-300 p-4 transition-colors sm:p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-ink-900 font-mono text-sm font-semibold">
+                            {report.public_ref}
+                          </p>
+                          <p className="text-ink-600 mt-1 text-sm">Anonymous report</p>
+                        </div>
+                        <span className="text-brand-700 text-sm font-medium">Check status</span>
+                      </div>
+                    </Card>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </AppShell>

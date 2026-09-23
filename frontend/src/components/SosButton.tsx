@@ -108,12 +108,9 @@ export function SosButton() {
     }
   }, [clearTimer])
 
-  // Not student-only: `can_create_report` on the backend admits any active
-  // account, the same reasoning `security/authorization.py` gives for the
-  // normal report form — staff can be in danger too, or witness something
-  // needing the same immediate escalation. `account` is null while signed
-  // out, and there is no one to raise an emergency as then.
-  if (!account) return null
+  // SOS is a student-facing emergency trigger. Staff users (security, ICC, admin)
+  // are responders and investigators, not report submitters.
+  if (!account || account.role !== 'student') return null
 
   const holding = phase === 'holding'
   const submitting = phase === 'submitting'

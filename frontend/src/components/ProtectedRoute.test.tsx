@@ -130,4 +130,46 @@ describe('ProtectedRoute', () => {
     renderWithAuth(<AppRoutes />, { route: '/no-such-page' })
     expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
   })
+
+  it('redirects staff navigating to student-only route /report to /incidents', async () => {
+    setCurrentUser(makeUser({ email: 'security@example.edu' }))
+    const fetchStub = createFetchStub(
+      signedInRoutes({
+        '/auth/me': {
+          body: {
+            user_id: '22222222-2222-2222-2222-222222222222',
+            email: 'security@example.edu',
+            role: 'security',
+            is_active: true,
+            display_name: 'Officer Smith',
+          },
+        },
+        '/incidents': {
+          body: {
+            items: [],
+            pagination: { total: 0, limit: 100, offset: 0, returned: 0 },
+            mapping_available: false,
+          },
+        },
+      }),
+    )
+
+    renderWithAuth(<AppRoutes />, { route: '/report', fetchImpl: fetchStub })
+
+    // Redirected away from student wizard to /incidents
+    expect(
+      await screen.findByRole('heading', { name: /active incidents/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /what happened\?/i })).not.toBeInTheDocument()
+  })
+
+  it('redirects students navigating to staff-only route /incidents to /dashboard', async () => {
+    setCurrentUser(makeUser())
+    const fetchStub = createFetchStub(signedInRoutes())
+
+    renderWithAuth(<AppRoutes />, { route: '/incidents', fetchImpl: fetchStub })
+
+    // Redirected away from incidents queue to /dashboard
+    expect(await screen.findByRole('heading', { name: /your overview/i })).toBeInTheDocument()
+  })
 })
