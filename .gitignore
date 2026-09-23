@@ -39,7 +39,9 @@ dumps/
 # ML artifacts
 *.pkl
 *.joblib
-models/
+ml/models/
+/models/
+!backend/app/models/
 
 # OS / editor
 .DS_Store
