@@ -195,3 +195,69 @@ describe('MyReportsPage → ReportDetailPage navigation', () => {
     expect(await screen.findByText(/status timeline/i)).toBeInTheDocument()
   })
 })
+
+describe('ReportDetailPage — add evidence later', () => {
+  function uploadResponse(token = 'a'.repeat(32)) {
+    return {
+      upload_token: token,
+      content_type: 'image/jpeg',
+      byte_size: 1024,
+      width: 320,
+      height: 240,
+      notice: 'Hidden location and device data have been removed from this image.',
+    }
+  }
+
+  function makeFile(name = 'photo.jpg', type = 'image/jpeg', size = 2048): File {
+    const file = new File([new Uint8Array(size)], name, { type })
+    Object.defineProperty(file, 'size', { value: size })
+    return file
+  }
+
+  const LIMITS = {
+    max_bytes: 10 * 1024 * 1024,
+    accepted_types: ['image/jpeg', 'image/png', 'image/webp'],
+    max_per_report: 5,
+  }
+
+  const user = () => userEvent.setup({ delay: null })
+
+  it('offers to add photos on an open, identified report', async () => {
+    renderDetail(detail(), { '/evidence/config': { body: LIMITS } })
+    expect(await screen.findByRole('heading', { name: /add photos/i })).toBeInTheDocument()
+  })
+
+  it('does not offer it on an anonymous report — a token proves read access, not write', async () => {
+    renderDetail(detail({ submission_mode: 'anonymous' }), {
+      '/evidence/config': { body: LIMITS },
+    })
+    await screen.findByText(REF)
+    expect(screen.queryByRole('heading', { name: /add photos/i })).not.toBeInTheDocument()
+  })
+
+  it('does not offer it once the case is closed', async () => {
+    renderDetail(detail({ status: 'resolved' }), { '/evidence/config': { body: LIMITS } })
+    await screen.findByText(REF)
+    expect(screen.queryByRole('heading', { name: /add photos/i })).not.toBeInTheDocument()
+  })
+
+  it('uploads and attaches a photo, then confirms it', async () => {
+    const u = user()
+    const { fetchImpl } = renderDetail(detail(), {
+      '/evidence/config': { body: LIMITS },
+      '/evidence': { status: 201, body: uploadResponse() },
+      [`/reports/${REF}/evidence`]: { status: 201, body: { evidence_ids: ['ev-1'] } },
+    })
+    await screen.findByRole('heading', { name: /add photos/i })
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await u.upload(input, makeFile())
+
+    const attachButton = await screen.findByRole('button', { name: /attach this photo/i })
+    await u.click(attachButton)
+
+    expect(await screen.findByText(/attached to this report/i)).toBeInTheDocument()
+    const body = fetchImpl.bodyFor(`/reports/${REF}/evidence`)
+    expect(body).toEqual({ evidence_tokens: ['a'.repeat(32)] })
+  })
+})

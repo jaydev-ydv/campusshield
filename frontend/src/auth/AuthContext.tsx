@@ -26,6 +26,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
+  updateProfile,
   type Auth,
   type User,
 } from 'firebase/auth'
@@ -66,7 +67,9 @@ export function AuthProvider({ children, authInstance, apiClient }: AuthProvider
   )
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null)
   const [account, setAccount] = useState<AccountIdentity | null>(null)
-  const [error, setError] = useState<string | null>(() => (auth ? null : UNCONFIGURED_MESSAGE))
+  const [error, setError] = useState<string | null>(() =>
+    auth ? null : UNCONFIGURED_MESSAGE,
+  )
 
   const client = useMemo(
     () =>
@@ -140,19 +143,41 @@ export function AuthProvider({ children, authInstance, apiClient }: AuthProvider
   )
 
   const signUp = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, name?: string) => {
       if (!auth) throw new Error('Registration is unavailable.')
-      await createUserWithEmailAndPassword(auth, email.trim(), password)
+      const credential = await createUserWithEmailAndPassword(auth, email.trim(), password)
+      if (name && name.trim()) {
+        try {
+          await updateProfile(credential.user, { displayName: name.trim() })
+        } catch {
+          // If updating display name fails, continue with credential creation.
+        }
+      }
     },
     [auth],
   )
 
   const provision = useCallback(async () => {
-    const identity = await api.register()
-    setAccount(identity)
-    setError(null)
-    setStatus('authenticated')
-    return identity
+    try {
+      const identity = await api.register()
+      setAccount(identity)
+      setError(null)
+      setStatus('authenticated')
+      return identity
+    } catch (error) {
+      // The account insert and the response are separate failure points. If a
+      // response is lost after the database commit, /auth/me lets an idempotent
+      // retry finish setup instead of trapping a signed-in user at this gate.
+      try {
+        const identity = await api.me()
+        setAccount(identity)
+        setError(null)
+        setStatus('authenticated')
+        return identity
+      } catch {
+        throw error
+      }
+    }
   }, [api])
 
   const refreshAccount = useCallback(async () => {

@@ -111,8 +111,9 @@ def resolve_database_url() -> str | None:
             for line in env.read_text().splitlines():
                 if line.startswith("DATABASE_URL="):
                     url = line.split("=", 1)[1].strip()
-    if url and url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if url:
+        from app.config import _normalise_db_url
+        url = _normalise_db_url(url)
     return url or None
 
 

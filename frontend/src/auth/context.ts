@@ -35,7 +35,7 @@ export interface AuthContextValue {
   /** Set when the shell itself cannot work, not when a form was filled in wrong. */
   error: string | null
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string, name?: string) => Promise<void>
   logout: () => Promise<void>
   /** Provision the application account for the current Firebase user. */
   provision: () => Promise<AccountIdentity>

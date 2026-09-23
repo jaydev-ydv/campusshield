@@ -4,6 +4,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
 import { useUnreadCount } from '../../hooks/useNotifications'
 import { ROLE_LABELS } from '../../lib/api'
+import { SosButton } from '../SosButton'
 import { Button } from '../ui/Button'
 
 function Wordmark({ compact = false }: { compact?: boolean }) {
@@ -248,6 +249,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      <SosButton />
     </div>
   )
 }

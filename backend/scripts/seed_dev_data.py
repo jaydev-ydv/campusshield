@@ -60,8 +60,9 @@ def resolve_database_url() -> str | None:
             for line in env.read_text().splitlines():
                 if line.startswith("DATABASE_URL="):
                     url = line.split("=", 1)[1].strip()
-    if url and url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if url:
+        from app.config import _normalise_db_url
+        url = _normalise_db_url(url)
     return url or None
 
 
@@ -98,7 +99,15 @@ def main() -> int:
         categories = conn.execute(
             text("SELECT count(*) FROM core.report_category WHERE is_active")
         ).scalar_one()
-        locations = conn.execute(text("SELECT count(*) FROM core.campus_location")).scalar_one()
+        # Excludes 'SYS-UNSPECIFIED': a permanent system sentinel seeded by
+        # migration 0007 for the emergency ("SOS") path, present in every
+        # migrated database regardless of this script — not something dev
+        # seeding created, so it should not read as one.
+        locations = conn.execute(
+            text(
+                "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'"
+            )
+        ).scalar_one()
         verified = conn.execute(
             text("SELECT count(*) FROM core.campus_location WHERE coordinate_status = 'verified'")
         ).scalar_one()

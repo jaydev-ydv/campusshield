@@ -35,6 +35,14 @@ class LocationRepository:
     def count_all(self) -> int:
         return len(list(self._session.scalars(select(CampusLocation.location_id))))
 
+    def get_by_code(self, code: str) -> CampusLocation | None:
+        """Look up a location by its stable code rather than its id.
+
+        Used to find the emergency sentinel row (``SYS-UNSPECIFIED``) without
+        hardcoding a numeric id that could differ across environments.
+        """
+        return self._session.scalar(select(CampusLocation).where(CampusLocation.code == code))
+
 
 class CategoryRepository:
     def __init__(self, session: Session) -> None:
@@ -53,6 +61,14 @@ class CategoryRepository:
                 ReportCategory.is_active.is_(True),
             )
         )
+
+    def get_by_code(self, code: str) -> ReportCategory | None:
+        """Look up a category by its stable code rather than its id.
+
+        Used to find the emergency sentinel category (``SOS_EMERGENCY``)
+        without hardcoding a numeric id that could differ across environments.
+        """
+        return self._session.scalar(select(ReportCategory).where(ReportCategory.code == code))
 
 
 class PolicyRepository:

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -129,18 +129,29 @@ describe('AuthContext', () => {
   it('reports unavailable when Firebase is not configured', async () => {
     // Without an injected Auth instance and with no VITE_FIREBASE_* variables,
     // this is what a fresh checkout without a .env file looks like.
-    const { render } = await import('@testing-library/react')
-    const { AuthProvider } = await import('./AuthContext')
-    const { MemoryRouter } = await import('react-router-dom')
+    const firebaseConfig = await import('../config/firebase')
+    const isConfiguredSpy = vi
+      .spyOn(firebaseConfig, 'isFirebaseConfigured')
+      .mockReturnValue(false)
 
-    render(
-      <AuthProvider>
-        <MemoryRouter>
-          <AuthProbe />
-        </MemoryRouter>
-      </AuthProvider>,
-    )
+    try {
+      const { render } = await import('@testing-library/react')
+      const { AuthProvider } = await import('./AuthContext')
+      const { MemoryRouter } = await import('react-router-dom')
 
-    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('unavailable'))
+      render(
+        <AuthProvider>
+          <MemoryRouter>
+            <AuthProbe />
+          </MemoryRouter>
+        </AuthProvider>,
+      )
+
+      await waitFor(() =>
+        expect(screen.getByTestId('status')).toHaveTextContent('unavailable'),
+      )
+    } finally {
+      isConfiguredSpy.mockRestore()
+    }
   })
 })

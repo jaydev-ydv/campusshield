@@ -17,7 +17,31 @@ class ConfigError(RuntimeError):
     """Raised at startup when the environment is not fit to run in."""
 
 
+_dotenv_loaded = False
+
+
+def _ensure_dotenv_loaded() -> None:
+    global _dotenv_loaded
+    if _dotenv_loaded:
+        return
+    _dotenv_loaded = True
+    try:
+        import pathlib
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        backend_env = pathlib.Path(__file__).resolve().parents[1] / ".env"
+        if backend_env.is_file():
+            load_dotenv(backend_env)
+        root_env = pathlib.Path(__file__).resolve().parents[2] / ".env"
+        if root_env.is_file():
+            load_dotenv(root_env)
+    except ImportError:
+        pass
+
+
 def _env(name: str, default: str | None = None) -> str | None:
+    _ensure_dotenv_loaded()
     value = os.environ.get(name)
     return value if value not in (None, "") else default
 
@@ -40,11 +64,42 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _normalise_db_url(url: str) -> str:
-    """Force the psycopg 3 driver, matching the migration layer."""
-    if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    """Ensure a supported PostgreSQL driver is specified.
+
+    Supports both psycopg 3 (psycopg) and psycopg 2 (psycopg2-binary).
+    If an explicit driver scheme is provided (postgresql+psycopg:// or
+    postgresql+psycopg2://), it is preserved when that driver is present.
+    If psycopg is not available, it cleanly falls back to psycopg2 to avoid
+    ModuleNotFoundError.
+    """
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    if url.startswith("postgresql+psycopg://"):
+        try:
+            import psycopg
+        except ImportError:
+            try:
+                import psycopg2
+                return url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
+            except ImportError:
+                pass
+        return url
+
+    if url.startswith("postgresql+psycopg2://"):
+        return url
+
+    if url.startswith("postgresql://"):
+        try:
+            import psycopg  # noqa: F401
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        except ImportError:
+            try:
+                import psycopg2  # noqa: F401
+                return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            except ImportError:
+                return url
+
     return url
 
 
@@ -91,7 +146,9 @@ class Config:
     # Browser origins permitted to call the API. Explicit list, never "*":
     # the API is credentialed, and a wildcard origin on a credentialed API is
     # how any site a student visits gets to act as them.
-    CORS_ORIGINS: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
+    CORS_ORIGINS: list[str] = field(
+        default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
+    )
 
     # Object storage for evidence images.  "memory" is for tests and local work
     # without a bucket; ProductionConfig refuses it.

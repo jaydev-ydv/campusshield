@@ -11,6 +11,17 @@ export default defineConfig({
     // is not arbitrary — changing it means changing the backend too.
     strictPort: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ['firebase/app', 'firebase/auth'],
+          leaflet: ['leaflet'],
+          react: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

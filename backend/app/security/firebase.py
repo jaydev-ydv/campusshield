@@ -69,6 +69,10 @@ class TokenVerifier(Protocol):
         ...
 
 
+class _PublicCertCredentialMarker:
+    """Marker interface for public-key ID token verification credential."""
+
+
 class FirebaseTokenVerifier:
     """Verifies Firebase ID tokens through the Firebase Admin SDK.
 
@@ -99,6 +103,7 @@ class FirebaseTokenVerifier:
     # -- initialisation ----------------------------------------------------
 
     def _build_credential(self) -> Any:
+        import os
         from firebase_admin import credentials
 
         if self._credentials_json:
@@ -121,17 +126,40 @@ class FirebaseTokenVerifier:
                 )
             return credentials.Certificate(str(path))
 
-        # Application Default Credentials: GOOGLE_APPLICATION_CREDENTIALS, or the
-        # metadata server when running on Google infrastructure.
-        try:
-            return credentials.ApplicationDefault()
-        except Exception as exc:
-            raise FirebaseConfigurationError(
-                "No Firebase credentials found. Set FIREBASE_CREDENTIALS_PATH to a "
-                "service-account JSON file, or FIREBASE_CREDENTIALS_JSON to its "
-                "contents, or GOOGLE_APPLICATION_CREDENTIALS for application "
-                "default credentials."
-            ) from exc
+        # Explicit environment variable pointing to a service-account JSON file
+        google_app_creds = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if google_app_creds:
+            gpath = pathlib.Path(google_app_creds).expanduser()
+            if gpath.is_file():
+                return credentials.Certificate(str(gpath))
+            try:
+                return credentials.ApplicationDefault()
+            except Exception as exc:
+                raise FirebaseConfigurationError(
+                    f"GOOGLE_APPLICATION_CREDENTIALS points at {gpath}, which could not be loaded."
+                ) from exc
+
+        # When check_revoked is True, privileged Admin API calls are required:
+        if self._check_revoked:
+            try:
+                return credentials.ApplicationDefault()
+            except Exception as exc:
+                raise FirebaseConfigurationError(
+                    "No Firebase credentials found. Set FIREBASE_CREDENTIALS_PATH to a "
+                    "service-account JSON file, or FIREBASE_CREDENTIALS_JSON to its "
+                    "contents, or GOOGLE_APPLICATION_CREDENTIALS for application "
+                    "default credentials."
+                ) from exc
+
+        # Default development & standard verification mode:
+        # ID token verification only needs FIREBASE_PROJECT_ID and Google's public certificates.
+        class _PublicCertCredential(_PublicCertCredentialMarker, credentials.Base):
+            def get_credential(self) -> Any:
+                from google.auth.credentials import AnonymousCredentials
+
+                return AnonymousCredentials()
+
+        return _PublicCertCredential()
 
     def _check_credential_resolves(self, credential: Any) -> None:
         """Resolve the credential eagerly, but only when it is actually needed.
@@ -155,6 +183,14 @@ class FirebaseTokenVerifier:
         when ``check_revoked`` makes it load-bearing, and is otherwise left to
         resolve if and when something needs it.
         """
+        if isinstance(credential, _PublicCertCredentialMarker):
+            logger.info(
+                "Using public-key verification for Firebase ID tokens (project %s). "
+                "No service-account credentials configured.",
+                self._project_id,
+            )
+            return
+
         if not self._check_revoked and not (self._credentials_path or self._credentials_json):
             logger.info(
                 "Firebase credentials not validated at startup: ID token verification "
@@ -266,6 +302,26 @@ class FirebaseTokenVerifier:
             # is what a raw UID or an API key pasted into the header looks like.
             logger.info("rejected an invalid Firebase ID token: %s", type(exc).__name__)
             raise AuthenticationError("The ID token is invalid.", code="TOKEN_INVALID") from exc
+        except Exception as exc:
+            from google.auth.exceptions import DefaultCredentialsError, GoogleAuthError
+            from firebase_admin.exceptions import FirebaseError
+
+            if isinstance(exc, DefaultCredentialsError):
+                logger.error("Firebase default credentials error: %s", exc)
+                raise ServiceUnavailableError(
+                    "Firebase server credentials are not configured or invalid."
+                ) from exc
+            if isinstance(exc, GoogleAuthError):
+                logger.error("Google authentication error during token verification: %s", exc)
+                raise ServiceUnavailableError(
+                    "Cannot verify credentials right now. Please check server connectivity."
+                ) from exc
+            if isinstance(exc, FirebaseError):
+                logger.error("Firebase error during token verification: %s", exc)
+                raise ServiceUnavailableError(
+                    "Firebase authentication service error. Please retry shortly."
+                ) from exc
+            raise
 
         uid = claims.get("uid") or claims.get("sub")
         if not uid:

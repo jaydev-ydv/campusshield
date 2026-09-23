@@ -73,7 +73,8 @@ export class ApiClient {
   private readonly fetchImpl: typeof fetch
 
   constructor(options: ApiClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '')
+    const raw = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '')
+    this.baseUrl = raw.endsWith('/api/v1') ? raw : `${raw}/api/v1`
     this.getToken = options.getToken ?? (async () => null)
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis)
   }

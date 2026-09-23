@@ -13,7 +13,16 @@ rules are enforced by database constraints underneath both.
 
 from __future__ import annotations
 
-from marshmallow import EXCLUDE, RAISE, Schema, ValidationError, fields, validate, validates
+from marshmallow import (
+    EXCLUDE,
+    RAISE,
+    Schema,
+    ValidationError,
+    fields,
+    validate,
+    validates,
+    validates_schema,
+)
 
 from ..models.enums import ReporterRelationship, ReportKind
 
@@ -93,6 +102,58 @@ class CreateReportSchema(_Strict):
             if offending:
                 raise ValidationError({k: [v] for k, v in offending.items()})
         return super().load(data, *args, **kwargs)
+
+
+class TriggerEmergencySchema(_Strict):
+    """Body for ``POST /reports/emergency``.
+
+    Deliberately almost empty — an emergency must not wait on a form. Both
+    coordinates are optional and, unlike ``CreateReportSchema``, permitted:
+    this is the one path in the system where a raw client coordinate is
+    accepted, because it is read straight from the browser at the moment of
+    the alert rather than standing in for a location the reporter chose from
+    the vocabulary. The service never trusts it to *be* the location — see
+    ``ReportService._resolve_emergency_location``.
+    """
+
+    latitude = fields.Float(
+        load_default=None, allow_none=True, validate=validate.Range(min=-90, max=90)
+    )
+    longitude = fields.Float(
+        load_default=None, allow_none=True, validate=validate.Range(min=-180, max=180)
+    )
+    reporter_relationship = fields.String(
+        load_default=ReporterRelationship.AFFECTED.value,
+        validate=validate.OneOf(
+            [r.value for r in ReporterRelationship],
+            error="Must be one of: affected, witness, third_party.",
+        ),
+    )
+
+    @validates_schema
+    def _paired_coordinates(self, data, **kwargs):
+        # Marshmallow validates fields independently, so "both or neither" has
+        # to be asserted explicitly rather than falling out of two Range
+        # checks. Matches the same pairing rule core.campus_location enforces
+        # for its own latitude/longitude columns.
+        has_lat = data.get("latitude") is not None
+        has_lon = data.get("longitude") is not None
+        if has_lat != has_lon:
+            raise ValidationError(
+                "latitude and longitude must both be present or both be omitted.",
+                field_name="longitude" if has_lat else "latitude",
+            )
+
+
+class AttachEvidenceSchema(_Strict):
+    """Body for ``POST /reports/<public_ref>/evidence`` — evidence added after
+    the report already exists, most often after an emergency trigger."""
+
+    evidence_tokens = fields.List(
+        fields.String(validate=validate.Regexp(r"^[a-f0-9]{32}$")),
+        required=True,
+        validate=validate.Length(min=1, max=5),
+    )
 
 
 class ListLocationsQuerySchema(Schema):

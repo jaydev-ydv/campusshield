@@ -1,19 +1,27 @@
 # Secrets — never commit. Use .env.example as the template.
 .env
 .env.*
+.env.local
 !.env.example
+*.pem
 
 # Firebase service-account keys. These carry a private key that can mint tokens
 # for any user in the project; the safest place for one is outside the repo.
 *serviceAccount*.json
 *service-account*.json
 *firebase-adminsdk*.json
+firebase-service-account.json
+service-account*.json
 firebase-key*.json
+
+# Dependencies
+node_modules/
 
 # Python
 .venv/
 venv/
 __pycache__/
+*.pyc
 *.py[cod]
 *.egg-info/
 .pytest_cache/

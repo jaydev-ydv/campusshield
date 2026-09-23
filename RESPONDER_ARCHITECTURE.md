@@ -146,6 +146,36 @@ reports routed to security. **A role is not access** — the same rule
 `can_view_report` applies to a single report, expressed as a query so the queue
 cannot show something the detail endpoint would then refuse.
 
+### Emergency ("SOS") reports (Phase 6)
+
+A report a student raised through the SOS trigger (`POST /reports/emergency`)
+is not a different kind of thing in this queue — it is `is_emergency = true`
+under the fixed `SOS_EMERGENCY` category, which routes to **security**, so it
+sorts first by the existing rule above with no new code in this file's own
+query. What is new:
+
+- **The attention banner.** `IncidentsPage` shows a calm, factual banner —
+  "N emergency reports have not been acknowledged yet" — when the queue holds
+  one or more emergencies with no dispatch yet, or a dispatch still in
+  `pending`. It disappears the moment a responder raises and acknowledges the
+  dispatch; an emergency already being handled does not re-alarm the page.
+  Deliberately not styled in alarm colours — see `SosButton.tsx`'s own
+  reasoning for why this app treats an emergency as a calm, deliberate
+  request for help rather than something to colour as risky.
+- **Category may say "Emergency SOS."** Where every other report's category
+  reflects the student's own classification, an SOS report's category is a
+  system default assigned because a responder queue has to route *somewhere*
+  and the trigger had no time to classify itself. A responder can correct it
+  with the existing `override_category` the same as any other report.
+- **Location may say "Unspecified location."** When the reporter's browser
+  gave no usable position and nothing could be matched to a verified place,
+  the report anchors to a permanent sentinel location
+  (`core.campus_location.code = 'SYS-UNSPECIFIED'`), which is unmapped by
+  construction — `destination.is_mapped` is `false` for it, exactly like any
+  other unsurveyed location, so no fake pin ever appears. `IncidentDetailPanel`
+  already renders this correctly with no new frontend logic: "This location
+  has no verified coordinate yet."
+
 ### Dispatch
 
 `core.emergency_dispatch` from migration `0001`, unchanged. It needed a writer,
@@ -341,6 +371,27 @@ The scratch database was dropped afterwards.
    it — `DATABASE.md` §29.1 has the full account. Listed here because it was
    a real defect in the architecture this document otherwise describes as
    complete, not swept into a changelog elsewhere.
+
+10. **SOS while offline is not guaranteed, and this project does not claim
+    otherwise.** No service worker, manifest, or offline-queueing exists
+    anywhere in the frontend (Phase 6 confirmed this by grep before building
+    anything). If the device has no connectivity at the moment the hold
+    completes, `POST /reports/emergency` fails like any other request and
+    `SosButton` shows an inline retry — it does not pretend to have queued
+    the alert for later delivery.
+
+11. **Anonymous SOS does not exist.** `ReportService.submit_sos()` always
+    creates an identified, contactable report. Building it safely needs a
+    real answer to rate-limiting an unlinkable submitter that this phase did
+    not have time to design well — see the method's own docstring and
+    `BACKEND_ARCHITECTURE.md` §16.7.
+
+12. **No external emergency service is contacted.** An SOS trigger alerts
+    campus security through this application's own responder queue — the
+    infrastructure that genuinely exists — and nothing else. It does not call
+    police, an ambulance, or a parent, and the frontend copy on
+    `EmergencyConfirmationPage` says so explicitly rather than implying
+    otherwise.
 
 ---
 

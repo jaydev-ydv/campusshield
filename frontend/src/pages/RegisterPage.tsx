@@ -17,6 +17,7 @@ export function RegisterPage() {
   const { signUp, provision } = useAuth()
   const navigate = useNavigate()
 
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -38,7 +39,7 @@ export function RegisterPage() {
       // API then creates the application account behind the resulting verified
       // token. This app never handles the password, and it never gets to say
       // what role the new account has — the server assigns `student`.
-      await signUp(email, password)
+      await signUp(email, password, name)
       await provision()
       navigate('/dashboard', { replace: true })
     } catch (error) {
@@ -71,6 +72,17 @@ export function RegisterPage() {
             {formError}
           </Alert>
         )}
+
+        <Input
+          label="Full name"
+          type="text"
+          name="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="name"
+          disabled={submitting}
+          hint="Optional. Configures your Firebase profile identity."
+        />
 
         <Input
           label="Email address"

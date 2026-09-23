@@ -8,12 +8,15 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { ErrorState } from '../components/ui/ErrorState'
 import { LoadingState } from '../components/ui/Spinner'
+import { ApiError } from '../lib/apiClient'
 import {
   RESOLUTION_REASON_LABELS,
   STATUS_LABELS,
   TERMINAL_STATUSES,
+  type EvidenceLimits,
   type ReportDetail,
 } from '../lib/api'
+import { EvidenceUpload, type EvidenceItem } from '../report/EvidenceUpload'
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -40,6 +43,12 @@ export function ReportDetailPage() {
   const [report, setReport] = useState<ReportDetail | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [nonce, setNonce] = useState(0)
+
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([])
+  const [limits, setLimits] = useState<EvidenceLimits | null>(null)
+  const [attaching, setAttaching] = useState(false)
+  const [attachError, setAttachError] = useState<string | null>(null)
+  const [justAttached, setJustAttached] = useState(false)
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 
@@ -69,6 +78,42 @@ export function ReportDetailPage() {
       cancelled = true
     }
   }, [api, ref, nonce])
+
+  useEffect(() => {
+    let cancelled = false
+    void api
+      .evidenceLimits()
+      .then((value) => {
+        if (!cancelled) setLimits(value)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [api])
+
+  const uploadedTokens = evidence.filter((item) => item.status === 'uploaded' && item.token)
+
+  async function attachEvidence() {
+    if (!report || uploadedTokens.length === 0) return
+    setAttaching(true)
+    setAttachError(null)
+    try {
+      await api.attachEvidence(
+        report.public_ref,
+        uploadedTokens.map((item) => item.token as string),
+      )
+      setJustAttached(true)
+      setEvidence([])
+      reload()
+    } catch (cause) {
+      setAttachError(
+        cause instanceof ApiError ? cause.message : 'The images could not be attached.',
+      )
+    } finally {
+      setAttaching(false)
+    }
+  }
 
   return (
     <AppShell>
@@ -180,6 +225,49 @@ export function ReportDetailPage() {
                 your report — it is what is safe to share while it is being handled.
               </p>
             </Card>
+
+            {report.submission_mode !== 'anonymous' &&
+              !TERMINAL_STATUSES.has(report.status) && (
+                <Card as="section" aria-labelledby="add-evidence-heading">
+                  <h2 id="add-evidence-heading" className="text-ink-900 text-sm font-medium">
+                    Add photos
+                  </h2>
+                  <p className="text-ink-600 mt-1 text-sm leading-relaxed">
+                    Never required. Useful if you have something to add now that you did not
+                    have at the time you filed this.
+                  </p>
+
+                  {justAttached ? (
+                    <Alert tone="success" title="Added" className="mt-4">
+                      <p>Your photos were attached to this report.</p>
+                    </Alert>
+                  ) : (
+                    <>
+                      <div className="mt-4">
+                        <EvidenceUpload
+                          items={evidence}
+                          setItems={setEvidence}
+                          limits={limits}
+                          disabled={attaching}
+                        />
+                      </div>
+                      {attachError && (
+                        <Alert tone="error" title="That did not complete" className="mt-4">
+                          <p>{attachError}</p>
+                        </Alert>
+                      )}
+                      {uploadedTokens.length > 0 && (
+                        <div className="mt-4">
+                          <Button onClick={() => void attachEvidence()} loading={attaching}>
+                            Attach{' '}
+                            {uploadedTokens.length === 1 ? 'this photo' : 'these photos'}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Card>
+              )}
 
             <div>
               <Link to="/reports">

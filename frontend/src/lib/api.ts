@@ -114,6 +114,15 @@ export interface ReportSubmissionResult extends ReportSummary {
   access_token_notice?: string
 }
 
+/** Body for `POST /reports/emergency`. Both coordinates are optional and
+ *  must be sent together — see `getEmergencyPosition` in `lib/geolocation.ts`
+ *  for how they're read from the browser. */
+export interface TriggerEmergencyPayload {
+  latitude?: number
+  longitude?: number
+  reporter_relationship?: ReporterRelationship
+}
+
 export interface Paginated<T> {
   items: T[]
   pagination: { total: number; limit: number; offset: number; returned: number }
@@ -514,6 +523,30 @@ export function createApi(client: ApiClient) {
      */
     submitReport: (payload: unknown) =>
       client.post<ReportSubmissionResult>('/reports', payload),
+
+    /**
+     * Raise an emergency. No category, no narrative, no location choice —
+     * the server fills those in (a system narrative, a location resolved
+     * from the optional coordinate or the "unspecified" sentinel) so this
+     * can be the entire request a genuine emergency needs.
+     *
+     * A second call from the same account within a couple of minutes returns
+     * the same report rather than creating another — safe to call again on a
+     * flaky connection without double-alerting.
+     */
+    triggerEmergency: (payload: TriggerEmergencyPayload = {}) =>
+      client.post<ReportSubmissionResult>('/reports/emergency', payload),
+
+    /**
+     * Attach evidence to a report that already exists — built for adding
+     * photos after an emergency trigger, once the immediate danger has
+     * passed. Reporter-only; works for any report filed under the caller's
+     * own name, not only an emergency one.
+     */
+    attachEvidence: (publicRef: string, evidenceTokens: string[]) =>
+      client.post<{ evidence_ids: string[] }>(`/reports/${publicRef}/evidence`, {
+        evidence_tokens: evidenceTokens,
+      }),
 
     evidenceLimits: () => client.get<EvidenceLimits>('/evidence/config'),
 

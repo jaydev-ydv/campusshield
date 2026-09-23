@@ -8,8 +8,10 @@
 
 Flask==3.1.3
 Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.1.0
 SQLAlchemy==2.0.51
 psycopg[binary]==3.3.4
+psycopg2-binary==2.9.12
 marshmallow==4.3.1
 python-dotenv==1.2.2
 
@@ -35,7 +37,7 @@ google-cloud-storage==3.13.1
 # load — see scripts/export_baseline_model.py for why the baseline is served.
 scikit-learn==1.9.0
 joblib==1.5.3
-numpy==2.5.2
+numpy==2.4.6
 
 # Request-rate abuse controls. Keyed by remote address; see
 # app/security/rate_limit.py for the storage-backend and proxy-address

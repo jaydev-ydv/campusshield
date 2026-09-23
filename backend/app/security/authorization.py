@@ -137,6 +137,21 @@ def can_manage_case(principal: Principal | None, ctx: ReportAccessContext) -> bo
     return ctx.routes_to_role is not None and principal.role is ctx.routes_to_role
 
 
+def can_attach_evidence(principal: Principal | None, ctx: ReportAccessContext) -> bool:
+    """May the caller add evidence to this already-submitted report?
+
+    Reporter only, and — unlike :func:`can_view_report` — **not** via an
+    anonymous access token. A token proves "let me read my own status," not
+    "let me add binding evidence"; extending it to writes was never something
+    the token's design considered. In practice this also confines
+    evidence-after-creation to the emergency path, since that path is always
+    identified (see ``ReportService.submit_sos``) — a real gap for anonymous
+    reporters, tracked as future scope rather than solved by stretching the
+    token's meaning under this feature's deadline.
+    """
+    return is_reporter(principal, ctx)
+
+
 def can_resolve_identity(principal: Principal | None, ctx: ReportAccessContext) -> bool:
     """May the caller learn *who* filed this?
 

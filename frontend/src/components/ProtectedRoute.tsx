@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
@@ -67,17 +67,47 @@ function ProvisioningGate({
   onProvision: () => Promise<unknown>
   onSignOut: () => Promise<void>
 }) {
+  const [provisioningError, setProvisioningError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleProvision() {
+    setProvisioningError(null)
+    setSubmitting(true)
+    try {
+      await onProvision()
+    } catch (error) {
+      setProvisioningError(
+        error instanceof Error
+          ? error.message
+          : 'We could not finish creating your CampusShield account. Please try again.',
+      )
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <AuthLayout
       title="Finish setting up your account"
       subtitle="You are signed in, but your CampusShield account has not been created yet."
     >
       <div className="space-y-4">
+        {provisioningError && (
+          <Alert tone="error" title="Account setup could not be completed">
+            {provisioningError} Check that the API is running, then try again.
+          </Alert>
+        )}
         <Alert tone="info" title="One more step">
-          This links your sign-in to CampusShield. Accounts are created as student accounts;
-          staff access is arranged by your institution.
+          Click the button below once to create your CampusShield account. Your Firebase sign-in
+          is already complete. New accounts are created as student accounts; staff access is
+          arranged by your institution.
         </Alert>
-        <Button fullWidth onClick={() => void onProvision()} loadingLabel="Setting up…">
+        <Button
+          fullWidth
+          onClick={() => void handleProvision()}
+          loading={submitting}
+          loadingLabel="Setting up…"
+        >
           Create my CampusShield account
         </Button>
         <Button variant="ghost" fullWidth onClick={() => void onSignOut()}>

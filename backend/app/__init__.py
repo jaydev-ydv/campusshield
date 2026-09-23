@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 
 from flask import Flask, jsonify
 from flask_cors import CORS
 
 from .config import Config, load_config
 from .errors import register_error_handlers
-from .extensions import db
+from .extensions import db, migrate
 from .utils.correlation import RequestIdLogFilter, register_correlation
 
 API_PREFIX = "/api/v1"
@@ -109,6 +110,11 @@ def create_app(config: Config | None = None, *, env_name: str | None = None) -> 
     _configure_logging(app)
     db.init_app(app)
 
+    migrations_dir = str(Path(__file__).resolve().parents[2] / "migrations")
+    if not Path(migrations_dir).is_dir():
+        migrations_dir = "migrations"
+    migrate.init_app(app, db, directory=migrations_dir)
+
     # The browser blocks a cross-origin call before the server ever sees it, so
     # the React dev server on :5173 cannot reach :5000 without this. Scoped to
     # the API prefix and to an explicit origin list — never "*", because the API
@@ -170,6 +176,10 @@ def create_app(config: Config | None = None, *, env_name: str | None = None) -> 
     app.register_blueprint(notifications_bp, url_prefix=API_PREFIX)
     app.register_blueprint(reports_bp, url_prefix=API_PREFIX)
 
+    @app.get("/api/health")
+    def api_health():
+        return jsonify({"status": "ok", "message": "CampusShield API is running"}), 200
+
     @app.get("/")
     def index():
         return (
@@ -180,6 +190,7 @@ def create_app(config: Config | None = None, *, env_name: str | None = None) -> 
                     "api_base": API_PREFIX,
                     "auth_provider": app.config["AUTH_PROVIDER"],
                     "endpoints": [
+                        "GET  /api/health",
                         f"GET  {API_PREFIX}/health",
                         f"GET  {API_PREFIX}/health/db",
                         f"POST {API_PREFIX}/auth/register",
@@ -191,8 +202,10 @@ def create_app(config: Config | None = None, *, env_name: str | None = None) -> 
                         f"GET  {API_PREFIX}/locations",
                         f"GET  {API_PREFIX}/categories",
                         f"POST {API_PREFIX}/reports",
+                        f"POST {API_PREFIX}/reports/emergency",
                         f"GET  {API_PREFIX}/reports/mine",
                         f"GET  {API_PREFIX}/reports/<public_ref>",
+                        f"POST {API_PREFIX}/reports/<public_ref>/evidence",
                         f"GET  {API_PREFIX}/incidents",
                         f"GET  {API_PREFIX}/incidents/<public_ref>",
                         f"POST {API_PREFIX}/incidents/<public_ref>/dispatch",

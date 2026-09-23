@@ -127,6 +127,33 @@ def test_evidence_upload_has_a_stricter_limit_than_the_global_default(
     assert statuses.count(429) >= 1
 
 
+def test_emergency_trigger_has_a_stricter_limit_than_the_global_default(
+    limited_client, limited_session
+):
+    """10 per hour on POST /reports/emergency, same ceiling as registration —
+    tight enough to blunt abuse, loose enough that a person in a genuine,
+    repeated emergency is not the one it blocks first."""
+    from app.models import AppUser
+    from app.models.enums import UserRole
+
+    user = AppUser(
+        firebase_uid="rate-limit-sos",
+        role=UserRole.STUDENT,
+        institutional_email="rate-limit-sos@test.local",
+    )
+    limited_session.add(user)
+    limited_session.flush()
+
+    statuses = [
+        limited_client.post(
+            "/api/v1/reports/emergency", json={}, headers=auth(user)
+        ).status_code
+        for _ in range(15)
+    ]
+
+    assert 429 in statuses
+
+
 def test_rate_limiting_is_off_by_default_in_tests(client):
     """The ordinary `client`/`app` fixtures (RATELIMIT_ENABLED=False) must not
     throttle the rest of the suite — this is the guarantee every other test

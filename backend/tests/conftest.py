@@ -41,12 +41,64 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 DEFAULT_TEST_DB = "postgresql+psycopg://localhost:5432/campusshield_backend_test"
 
 
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    backend_env = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    if backend_env.exists():
+        load_dotenv(backend_env)
+    root_env = PROJECT_ROOT / ".env"
+    if root_env.exists():
+        load_dotenv(root_env)
+
+
 def _test_database_url() -> str:
-    return os.environ.get("TEST_DATABASE_URL", DEFAULT_TEST_DB)
+    _load_dotenv()
+    url = os.environ.get("TEST_DATABASE_URL", DEFAULT_TEST_DB)
+    from app.config import _normalise_db_url
+
+    return _normalise_db_url(url)
 
 
 def _db_name(url: str) -> str:
     return url.rsplit("/", 1)[-1].split("?")[0]
+
+
+def _recreate_db(url: str, name: str) -> None:
+    try:
+        subprocess.run(["dropdb", "--if-exists", name], check=False, capture_output=True)
+        created = subprocess.run(["createdb", name], capture_output=True, text=True)
+        if created.returncode == 0:
+            return
+    except FileNotFoundError:
+        pass
+
+    admin_url = url.rsplit("/", 1)[0] + "/postgres"
+    eng = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with eng.connect() as conn:
+        conn.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE);"))
+        conn.execute(text(f"CREATE DATABASE {name};"))
+    eng.dispose()
+
+
+def _drop_db(url: str, name: str) -> None:
+    try:
+        res = subprocess.run(["dropdb", "--if-exists", name], check=False, capture_output=True)
+        if res.returncode == 0:
+            return
+    except FileNotFoundError:
+        pass
+
+    admin_url = url.rsplit("/", 1)[0] + "/postgres"
+    try:
+        eng = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+        with eng.connect() as conn:
+            conn.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE);"))
+        eng.dispose()
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="session")
@@ -62,13 +114,13 @@ def database_url() -> str:
     if "test" not in name:
         pytest.fail(f"refusing to run against {name!r}: not a test database")
 
-    subprocess.run(["dropdb", "--if-exists", name], check=False, capture_output=True)
-    created = subprocess.run(["createdb", name], capture_output=True, text=True)
-    if created.returncode != 0:
-        pytest.skip(f"cannot create test database {name}: {created.stderr.strip()}")
+    try:
+        _recreate_db(url, name)
+    except Exception as exc:
+        pytest.skip(f"cannot create test database {name}: {exc}")
 
     migrated = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "-x", f"db_url={url}", "upgrade", "head"],
         cwd=PROJECT_ROOT,
         env={**os.environ, "DATABASE_URL": url},
         capture_output=True,
@@ -79,7 +131,7 @@ def database_url() -> str:
 
     yield url
 
-    subprocess.run(["dropdb", "--if-exists", name], check=False, capture_output=True)
+    _drop_db(url, name)
 
 
 @pytest.fixture(scope="session")

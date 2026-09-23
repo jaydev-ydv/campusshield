@@ -147,6 +147,42 @@ already fetched. Clicking or keyboard-activating a marker calls the same
 sync because they write to the same piece of state, not because either
 observes the other.
 
+## Emergency ("SOS") trigger (Phase 6)
+
+`components/SosButton.tsx` renders a persistent, floating control in
+`AppShell` for every signed-in account — reachable from any page, not just
+the report form. See its own module docstring for the full reasoning; the
+short version:
+
+- **Press-and-hold, not a confirmation dialog.** No modal pattern exists
+  anywhere in this codebase, and a copied generic "Are you sure?" dialog adds
+  exactly the wrong thing at a moment that may have neither the time nor the
+  attention for a second decision and a small target. Holding for 1.5s
+  (`SOS_HOLD_MS`) needs sustained, deliberate contact instead — immune to a
+  stray tap, needs no reading, and behaves identically across mouse, touch,
+  and keyboard (`pointerdown`/`pointerup` and `keydown`/`keyup` over the same
+  timer).
+- **Amber, not red.** `Button.tsx`'s `danger` variant is explicitly reserved
+  and explicitly *not* for this — raising an emergency is a calm, deliberate
+  request for help, the same reasoning that keeps the app's own wordmark a
+  quiet shield rather than a siren (`AppShell.tsx`).
+- **Geolocation is opportunistic, never blocking.** `lib/geolocation.ts`'s
+  `getEmergencyPosition()` starts the moment the hold begins — so a fast fix
+  usually finishes before the hold does, at zero extra latency — and
+  resolves to `null` rather than rejecting on denial, unavailability, or
+  timeout. The alert is sent the instant the hold completes regardless of
+  whether a position arrived.
+- **`POST /reports/emergency`** needs no category, location, or narrative —
+  the backend fills all three in. On success the app navigates to
+  `EmergencyConfirmationPage.tsx`, which shows the reference, states plainly
+  whether a location was resolved, and offers an `EvidenceUpload` (the same
+  component `ReportPage` uses) to attach photos afterward via
+  `POST /reports/<ref>/evidence` — never required, and the reporter can also
+  reach this later from their reports list.
+- **The queue side** — the responder-facing half of this feature — lives in
+  `IncidentsPage.tsx`'s attention banner, documented in
+  `RESPONDER_ARCHITECTURE.md` §3.
+
 ## Demo campus data, visibly marked (Phase 5B)
 
 `CampusLocation.is_synthetic` / `Destination.is_synthetic` (see

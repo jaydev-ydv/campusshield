@@ -52,15 +52,16 @@ SCRATCH_DB = "campusshield_seed_scratch_test"
 @pytest.fixture(scope="module")
 def scratch_database() -> str:
     """A database of its own, so seeding cannot disturb the other tests."""
-    url = f"postgresql+psycopg://localhost:5432/{SCRATCH_DB}"
+    from tests.conftest import _drop_db, _recreate_db, _test_database_url
 
-    subprocess.run(["dropdb", "--if-exists", SCRATCH_DB], check=False, capture_output=True)
-    created = subprocess.run(["createdb", SCRATCH_DB], capture_output=True, text=True)
-    if created.returncode != 0:
-        pytest.skip(f"cannot create {SCRATCH_DB}: {created.stderr.strip()}")
+    url = _test_database_url().rsplit("/", 1)[0] + f"/{SCRATCH_DB}"
+    try:
+        _recreate_db(url, SCRATCH_DB)
+    except Exception as exc:
+        pytest.skip(f"cannot create {SCRATCH_DB}: {exc}")
 
     migrated = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "-x", f"db_url={url}", "upgrade", "head"],
         cwd=PROJECT_ROOT,
         env={**os.environ, "DATABASE_URL": url},
         capture_output=True,
@@ -71,7 +72,7 @@ def scratch_database() -> str:
 
     yield url
 
-    subprocess.run(["dropdb", "--if-exists", SCRATCH_DB], check=False, capture_output=True)
+    _drop_db(url, SCRATCH_DB)
 
 
 @pytest.fixture(scope="module")
@@ -98,8 +99,16 @@ def _scalar(url: str, query: str):
 
 @pytest.mark.privacy
 def test_seed_creates_no_campus_locations(seeded: str):
-    """The requirement, stated directly."""
-    count = _scalar(seeded, "SELECT count(*) FROM core.campus_location")
+    """The requirement, stated directly.
+
+    Excludes the one permanent 'SYS-UNSPECIFIED' sentinel row — that comes
+    from migration 0007, applied to every environment regardless of seeding,
+    not from this script. See its own migration docstring.
+    """
+    count = _scalar(
+        seeded,
+        "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'",
+    )
     assert count == 0, f"seed data created {count} campus location(s)"
 
 
@@ -133,11 +142,22 @@ def test_seed_is_idempotent(seeded: str):
     )
     assert result.returncode == 0
     assert _scalar(seeded, "SELECT count(*) FROM identity.app_user") == 5
-    assert _scalar(seeded, "SELECT count(*) FROM core.campus_location") == 0
+    assert (
+        _scalar(
+            seeded,
+            "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'",
+        )
+        == 0
+    )
 
 
 def test_seed_output_states_the_table_is_empty_by_design(seeded: str):
-    """An empty location list must read as intentional, not as a broken setup."""
+    """An empty location list must read as intentional, not as a broken setup.
+
+    The script's own count still reports 0: it queries `is_active` locations
+    (see `seed_dev_data.py`), and the migration-seeded sentinel is
+    deliberately never active.
+    """
     result = subprocess.run(
         [sys.executable, str(SEED_SCRIPT)],
         cwd=BACKEND_ROOT,

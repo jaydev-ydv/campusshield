@@ -256,6 +256,45 @@ describe('IncidentsPage — the queue', () => {
     expect(text).not.toMatch(/alert!|urgent!|🚨/i)
   })
 
+  it('banners an unacknowledged emergency, calmly', async () => {
+    renderPage(responderRoutes([EMERGENCY_INCIDENT, UNMAPPED_INCIDENT]))
+
+    const banner = await screen.findByTestId('attention-banner')
+    expect(within(banner).getByText(/has not been acknowledged yet/i)).toBeInTheDocument()
+    const text = document.body.textContent ?? ''
+    expect(text).not.toMatch(/alert!|urgent!|🚨/i)
+  })
+
+  it('does not banner once the emergency has a dispatch under way', async () => {
+    renderPage(
+      responderRoutes([
+        {
+          ...EMERGENCY_INCIDENT,
+          dispatch: {
+            dispatch_id: 'd-1',
+            state: 'acknowledged',
+            raised_at: '2026-08-11T14:05:00+00:00',
+            acknowledged_at: '2026-08-11T14:06:00+00:00',
+            dispatched_at: null,
+            on_scene_at: null,
+            closed_at: null,
+            responder_note: null,
+          },
+        },
+      ]),
+    )
+
+    await screen.findByRole('region', { name: /queue/i })
+    expect(screen.queryByTestId('attention-banner')).not.toBeInTheDocument()
+  })
+
+  it('does not banner when nothing is an emergency', async () => {
+    renderPage(responderRoutes([UNMAPPED_INCIDENT]))
+
+    await screen.findByRole('region', { name: /queue/i })
+    expect(screen.queryByTestId('attention-banner')).not.toBeInTheDocument()
+  })
+
   it('shows how many photographs an incident carries', async () => {
     renderPage(responderRoutes([{ ...UNMAPPED_INCIDENT, evidence_count: 2 }]))
     expect(await screen.findByText('2 photos')).toBeInTheDocument()

@@ -30,6 +30,13 @@ const FILTERABLE_STATUSES: CaseStatus[] = [
   'action_taken',
 ]
 
+/** No dispatch yet, or one raised but not yet acknowledged — the emergencies
+ *  nobody has looked at, distinct from one already being actively handled. */
+function needsAttention(incident: IncidentSummary): boolean {
+  const state: DispatchState | null = incident.dispatch?.state ?? null
+  return incident.is_emergency && (state === null || state === 'pending')
+}
+
 function relativeTime(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   if (minutes < 1) return 'just now'
@@ -280,6 +287,8 @@ export function IncidentsPage() {
     )
   }
 
+  const attentionCount = (incidents ?? []).filter(needsAttention).length
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -290,6 +299,19 @@ export function IncidentsPage() {
             recently they arrived.
           </p>
         </div>
+
+        {attentionCount > 0 && (
+          <div data-testid="attention-banner">
+            <Alert tone="warning" title="Emergency — needs attention">
+              <p>
+                {attentionCount === 1
+                  ? 'One emergency report has not been acknowledged yet.'
+                  : `${attentionCount} emergency reports have not been acknowledged yet.`}{' '}
+                They are sorted to the top of the queue below.
+              </p>
+            </Alert>
+          </div>
+        )}
 
         <div
           role="group"

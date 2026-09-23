@@ -961,4 +961,129 @@ actual Google-hosted bucket by this codebase. See
 `PHASE_4F_FIREBASE_STORAGE.md` for what a real verification run would need
 to do and confirm.
 
+## 16. Emergency ("SOS") reporting (Phase 6)
+
+### 16.1 What this is, in one line
+
+A second way to create a `core.report` row — everything downstream (the
+responder queue, dispatch, case lifecycle, evidence, privacy guarantees) is
+the same table and the same code as the normal flow. See `DATABASE.md`'s
+"Phase 6" subsection for the schema-level detail; this section covers the
+service and route layer.
+
+### 16.2 Two new endpoints
+
+```
+POST /reports/emergency        →  ReportService.submit_sos()
+POST /reports/<ref>/evidence   →  ReportService.get_report_for_reporter()
+                                   + EvidenceService.attach_all()
+```
+
+`POST /reports/emergency` accepts an optional `{latitude, longitude,
+reporter_relationship}` body — every field optional except that latitude and
+longitude must be given together or not at all (`TriggerEmergencySchema`,
+the one schema in the codebase permitted to accept a raw client coordinate,
+since it describes a device reading rather than standing in for a location
+choice — see its own docstring for why `CreateReportSchema` explicitly
+forbids the same fields). Rate-limited to 10/hour, matching
+`/auth/register`'s ceiling.
+
+`POST /reports/<ref>/evidence` lets the reporter attach evidence to a report
+that already exists — the pattern the emergency path needs (photos taken
+after the fact, once it's safe), but not restricted to it; it works for any
+report the caller filed under their own name. Authorization is
+`can_attach_evidence`, deliberately narrower than `can_view_report`: no
+token-holder access (a token proves "let me read my status," not "let me
+write"), and no staff access even though staff can view the report — only
+the reporter may add to their own evidence.
+
+### 16.3 `submit()` / `submit_sos()` share one creation path
+
+Before this phase, `ReportService.submit()` did everything: authorize,
+validate the client-supplied `location_id` against `LocationRepository.
+get_active()`, validate category, build the `Report`, attach evidence,
+resolve the location signal, enforce quota, run triage. `submit_sos()` needs
+almost all of that, but its location is never client-supplied — it is either
+a location the service itself matched via `nearest_verified_location()` or
+the `SYS-UNSPECIFIED` sentinel — so it cannot go through the same `get_active()`
+gate without either weakening that gate for everyone or duplicating the rest
+of the pipeline.
+
+The fix was a small refactor, not a parallel implementation: `submit()`'s
+body was split into a public entry point (does the `get_active()` check,
+which stays exactly as strict as before for every client-driven call) and a
+private `_create(principal, submission, location, *, now)` that takes an
+already-resolved `CampusLocation` and does everything else — category
+validation, the emergency/quota rules, evidence attachment, location signal
+resolution, triage. `submit()` calls `_create()` after its lookup succeeds;
+`submit_sos()` calls it directly with whatever location it resolved. Nothing
+about the normal flow's validation strength changed; the emergency path
+simply never passes through a check that was never meant to gate a
+server-chosen location in the first place.
+
+`ReportSubmission.category_id` was widened from `int` to `int | None` for
+the same reason, gated by `_create()`'s own service-layer backstop:
+`category_id=None` is only accepted when `is_emergency=True`, so nothing can
+reach a categoryless, non-emergency report even by constructing the
+dataclass directly.
+
+### 16.4 Location resolution, concretely
+
+```python
+def _resolve_emergency_location(self, latitude, longitude, now):
+    if latitude is not None and longitude is not None:
+        signal = LocationSignal(latitude, longitude, DEVICE_GPS, now)
+        matched = nearest_verified_location(latitude, longitude,
+                                             self._locations.list_active())
+        if matched is not None:
+            return matched, signal
+    sentinel = self._locations.get_by_code("SYS-UNSPECIFIED")
+    return sentinel, signal  # signal is None if no coordinate was given at all
+```
+
+`nearest_verified_location()` (`location_service.py`) is new — a plain
+nearest-neighbour search over `LocationRepository.list_active()` using the
+same `haversine_metres` the resolver already imports, nothing else new.
+Whichever location comes back, `(location, signal)` feeds straight into the
+*existing*, unmodified `LocationResolver.resolve()` inside `_create()` — the
+resolver cannot tell whether a signal originated from a photo's EXIF or a
+browser's `navigator.geolocation`, and was never asked to.
+
+### 16.5 Duplicate-press handling
+
+`submit_sos()` reads the caller's own most recent report
+(`ReportRepository.list_for_reporter(limit=1)`, already scoped to identified
+reports the caller filed — sufficient here since the emergency path is
+always identified) and, if it is itself an emergency submitted within the
+last two minutes, returns it unchanged instead of creating a second row.
+This is a repeated-tap guard, not a rate limiter — a second, genuinely later
+emergency from the same person still creates its own report; the window
+exists only to absorb a double press or a client retry after a slow
+response.
+
+### 16.6 Why quota is skipped for `is_emergency=true`, not just for SOS
+
+`_enforce_quota` is now conditioned on `not submission.is_emergency` inside
+`_create()` — a change to the *shared* path, so it also fixes the same
+latent gap in the pre-existing "flag as emergency" checkbox on the normal
+report form. A person having a genuine emergency should never be blocked
+because they already filed five unrelated reports earlier the same day, and
+there was no principled reason to fix that only for the new endpoint.
+
+### 16.7 What was deliberately not built
+
+- **Anonymous SOS.** `submit_sos()` always produces
+  `submission_mode=identified`, `reporter_contactable=true`. The primary
+  scenario (the reporter's own physical danger) makes contactability
+  operationally important in a way normal anonymous reporting's threat model
+  (retaliation for reporting on someone else) does not share, and building
+  anonymous-SOS rate-limiting safely is a real, separate problem — see
+  `submit_sos`'s own docstring.
+- **A second "add narrative later" endpoint.** Evidence-after-creation was
+  required (§16.2); an equivalent for narrative text was not — the 21-item
+  acceptance list for this feature does not require it, and it is tracked as
+  near-term future work rather than built under this feature's own scope.
+- **A distinct emergency lifecycle.** `core.emergency_dispatch` and
+  `DispatchState` are reused unmodified — see `DATABASE.md` Phase 6.
+
 ---

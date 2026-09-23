@@ -7,13 +7,14 @@ import { AuthLayout } from './components/layout/AppShell'
 import { Button } from './components/ui/Button'
 import { AccountPage } from './pages/AccountPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { ReportDetailPage } from './pages/ReportDetailPage'
+import { EmergencyConfirmationPage } from './pages/EmergencyConfirmationPage'
 import { IncidentsPage } from './pages/IncidentsPage'
 import { LoginPage } from './pages/LoginPage'
 import { MyReportsPage } from './pages/MyReportsPage'
-import { NotificationsPage } from './pages/NotificationsPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { ReportConfirmationPage } from './pages/ReportConfirmationPage'
+import { ReportDetailPage } from './pages/ReportDetailPage'
 import { ReportPage } from './pages/ReportPage'
 
 function NotFoundPage() {
@@ -100,6 +101,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <ReportConfirmationPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/emergency/submitted"
+        element={
+          <ProtectedRoute>
+            <EmergencyConfirmationPage />
           </ProtectedRoute>
         }
       />

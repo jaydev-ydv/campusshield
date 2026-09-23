@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 
@@ -17,6 +18,7 @@ class Base(DeclarativeBase):
 
 
 db = SQLAlchemy(model_class=Base)
+migrate = Migrate()
 
 # Keyed by remote address. Generous enough not to obstruct a responder
 # triaging a busy queue, tight enough to stop a basic scripted crawl of the

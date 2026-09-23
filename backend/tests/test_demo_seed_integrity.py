@@ -33,15 +33,17 @@ SCRATCH_DB = "campusshield_demo_seed_scratch_test"
 
 @pytest.fixture(scope="module")
 def scratch_database() -> str:
-    url = f"postgresql+psycopg://localhost:5432/{SCRATCH_DB}"
+    """A database of its own, so seeding cannot disturb the other tests."""
+    from tests.conftest import _drop_db, _recreate_db, _test_database_url
 
-    subprocess.run(["dropdb", "--if-exists", SCRATCH_DB], check=False, capture_output=True)
-    created = subprocess.run(["createdb", SCRATCH_DB], capture_output=True, text=True)
-    if created.returncode != 0:
-        pytest.skip(f"cannot create {SCRATCH_DB}: {created.stderr.strip()}")
+    url = _test_database_url().rsplit("/", 1)[0] + f"/{SCRATCH_DB}"
+    try:
+        _recreate_db(url, SCRATCH_DB)
+    except Exception as exc:
+        pytest.skip(f"cannot create {SCRATCH_DB}: {exc}")
 
     migrated = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "-x", f"db_url={url}", "upgrade", "head"],
         cwd=PROJECT_ROOT,
         env={**os.environ, "DATABASE_URL": url},
         capture_output=True,
@@ -52,7 +54,7 @@ def scratch_database() -> str:
 
     yield url
 
-    subprocess.run(["dropdb", "--if-exists", SCRATCH_DB], check=False, capture_output=True)
+    _drop_db(url, SCRATCH_DB)
 
 
 @pytest.fixture(scope="module")
@@ -78,12 +80,21 @@ def _scalar(url: str, query: str):
 
 
 def test_demo_seed_creates_locations(seeded: str):
-    count = _scalar(seeded, "SELECT count(*) FROM core.campus_location")
+    count = _scalar(
+        seeded, "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'"
+    )
     assert count == 5
 
 
 def test_every_demo_location_is_flagged_synthetic(seeded: str):
-    count = _scalar(seeded, "SELECT count(*) FROM core.campus_location WHERE NOT is_synthetic")
+    """Excludes 'SYS-UNSPECIFIED': the permanent emergency-path sentinel from
+    migration 0007, not a demo fixture, so `is_synthetic` is correctly false
+    for it."""
+    count = _scalar(
+        seeded,
+        "SELECT count(*) FROM core.campus_location "
+        "WHERE NOT is_synthetic AND code <> 'SYS-UNSPECIFIED'",
+    )
     assert count == 0, "a demo-seeded row was not flagged is_synthetic"
 
 
@@ -97,12 +108,17 @@ def test_every_demo_location_carries_the_required_source_prefix(seeded: str):
 
 
 def test_every_demo_location_is_active_and_mapped(seeded: str):
-    """The whole point: demo data must actually work, not just exist."""
+    """The whole point: demo data must actually work, not just exist.
+
+    Excludes 'SYS-UNSPECIFIED', which is deliberately inactive and unmapped —
+    see migration 0007 — and is not a demo fixture this script is responsible
+    for.
+    """
     count = _scalar(
         seeded,
         "SELECT count(*) FROM core.campus_location "
-        "WHERE NOT is_active OR coordinate_status <> 'verified' "
-        "OR latitude IS NULL OR longitude IS NULL",
+        "WHERE (NOT is_active OR coordinate_status <> 'verified' "
+        "OR latitude IS NULL OR longitude IS NULL) AND code <> 'SYS-UNSPECIFIED'",
     )
     assert count == 0
 
@@ -117,7 +133,12 @@ def test_demo_seed_is_idempotent(seeded: str):
     )
     assert result.returncode == 0
     assert "0 inserted, 5 already present" in result.stdout
-    assert _scalar(seeded, "SELECT count(*) FROM core.campus_location") == 5
+    assert (
+        _scalar(
+            seeded, "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'"
+        )
+        == 5
+    )
 
 
 def test_demo_seed_refuses_a_production_looking_database_name():

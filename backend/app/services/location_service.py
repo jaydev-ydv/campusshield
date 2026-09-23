@@ -86,6 +86,53 @@ class ResolvedLocation:
     conflict_note: str | None = None
 
 
+# How far a device position may be from a verified location and still count as
+# "this is that place" for the emergency path. Wider than
+# DEFAULT_CORROBORATION_RADIUS_M deliberately: corroboration is confirming a
+# place the student already chose, this is searching campus-wide for the one
+# place a raw coordinate is nearest to, with no prior selection to anchor it.
+DEFAULT_EMERGENCY_MATCH_RADIUS_M = 300
+
+
+def nearest_verified_location(
+    latitude: float,
+    longitude: float,
+    candidates: list[CampusLocation],
+    *,
+    max_distance_m: int = DEFAULT_EMERGENCY_MATCH_RADIUS_M,
+) -> CampusLocation | None:
+    """The closest verified location to a raw coordinate, if any is close enough.
+
+    Built for the emergency ("SOS") path: a browser position arrives with no
+    location the student picked to compare it against, so there is nothing for
+    :meth:`LocationResolver.resolve` to corroborate. This answers a different
+    question — *which* surveyed place, if any, is this near? — so the emergency
+    report can be anchored to a real, named location instead of the
+    "unspecified" sentinel whenever that's honestly possible.
+
+    ``candidates`` should come from :meth:`LocationRepository.list_active`,
+    which already guarantees every row is ``verified`` and has coordinates —
+    this function does not re-check that, and will raise if handed a row
+    without one.
+
+    Returns ``None`` rather than guessing when nothing is within
+    ``max_distance_m``. Today this always returns ``None``: zero campus
+    locations are verified yet, so there is nothing to match against. That is
+    the honest state of the survey, not a bug in this function.
+    """
+    best: CampusLocation | None = None
+    best_distance = float("inf")
+    for candidate in candidates:
+        if candidate.latitude is None or candidate.longitude is None:
+            continue
+        distance = haversine_metres(
+            latitude, longitude, float(candidate.latitude), float(candidate.longitude)
+        )
+        if distance <= max_distance_m and distance < best_distance:
+            best, best_distance = candidate, distance
+    return best
+
+
 class LocationResolver:
     def __init__(self, *, corroboration_radius_m: int = DEFAULT_CORROBORATION_RADIUS_M) -> None:
         self._radius_m = corroboration_radius_m

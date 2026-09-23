@@ -27,6 +27,13 @@ def test_health_endpoint_is_public(client):
     assert response.get_json() == {"status": "ok"}
 
 
+def test_api_health_endpoint(client):
+    """GET /api/health minimal health check returning status ok and message."""
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok", "message": "CampusShield API is running"}
+
+
 def test_health_endpoint_returns_request_id(client):
     response = client.get("/api/v1/health")
     assert response.headers.get("X-Request-ID")

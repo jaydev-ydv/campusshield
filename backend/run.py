@@ -26,12 +26,13 @@ def _load_dotenv() -> None:
         load_dotenv(env_path)
 
 
+_load_dotenv()
+
+from app import create_app  # noqa: E402
+from app.config import ConfigError  # noqa: E402
+
+
 def main() -> int:
-    _load_dotenv()
-
-    from app import create_app
-    from app.config import ConfigError
-
     try:
         app = create_app()
     except ConfigError as exc:

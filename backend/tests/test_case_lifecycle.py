@@ -87,11 +87,9 @@ def db_closed_at(session, ref):
 
 def triage_to_under_review(client, users, ref, *, responder="icc"):
     """The common setup: triaged, assigned, and moved into investigation."""
-    status(client, users[responder], ref, "triaged").status_code
+    assert status(client, users[responder], ref, "triaged").status_code == 201
     assign(client, users[responder], ref)
-    return status(
-        client, users[responder], ref, "under_review", remark="Beginning investigation."
-    )
+    return status(client, users[responder], ref, "under_review", remark="Beginning investigation.")
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +102,7 @@ def test_submitted_reports_start_submitted(client, users, session, report_payloa
     assert db_status(session, created["public_ref"]) == "submitted"
 
 
-def test_triage_moves_the_report_and_the_trigger_syncs_it(
-    client, users, session, report_payload
-):
+def test_triage_moves_the_report_and_the_trigger_syncs_it(client, users, session, report_payload):
     """The point of this test: nothing here calls anything but POST .../status.
 
     `core.report.current_status` is asserted afterwards, proving
@@ -144,7 +140,13 @@ def test_the_full_investigative_path_to_resolution(client, users, session, repor
     assert status(client, users["icc"], ref, "triaged").status_code == 201
     assert assign(client, users["icc"], ref).status_code == 201
     assert (
-        status(client, users["icc"], ref, "under_review", remark="Reviewing the account.").status_code
+        status(
+            client,
+            users["icc"],
+            ref,
+            "under_review",
+            remark="Reviewing the account.",
+        ).status_code
         == 201
     )
     assert (
@@ -202,7 +204,9 @@ def test_early_exits_from_submitted_need_no_assignment(
     created = emergency(client, users, report_payload)
     ref = created["public_ref"]
 
-    response = status(client, users["icc"], ref, target, remark="Closing early.", resolution_reason=reason)
+    response = status(
+        client, users["icc"], ref, target, remark="Closing early.", resolution_reason=reason
+    )
     assert response.status_code == 201, response.get_json()
     assert db_status(session, ref) == target
     assert db_closed_at(session, ref) is not None
@@ -244,9 +248,7 @@ def test_under_review_requires_an_active_assignment(client, users, report_payloa
     assert "assigned" in response.get_json()["error"]["message"].lower()
 
 
-def test_releasing_the_assignment_blocks_the_next_forward_transition(
-    client, users, report_payload
-):
+def test_releasing_the_assignment_blocks_the_next_forward_transition(client, users, report_payload):
     """Unassigning mid-investigation does not roll the case backward — it
     stays under_review — but it does block moving it further until claimed
     again."""
@@ -255,14 +257,23 @@ def test_releasing_the_assignment_blocks_the_next_forward_transition(
     triage_to_under_review(client, users, ref)
     unassign(client, users["icc"], ref)
 
-    response = status(client, users["icc"], ref, "resolved", remark="Closing.", resolution_reason="action_taken")
+    response = status(
+        client, users["icc"], ref, "resolved", remark="Closing.", resolution_reason="action_taken"
+    )
     assert response.status_code == 409
 
 
 def test_a_terminal_case_accepts_no_further_transition(client, users, report_payload):
     created = emergency(client, users, report_payload)
     ref = created["public_ref"]
-    status(client, users["icc"], ref, "withdrawn", remark="Reporter asked to withdraw.", resolution_reason="withdrawn_by_reporter")
+    status(
+        client,
+        users["icc"],
+        ref,
+        "withdrawn",
+        remark="Reporter asked to withdraw.",
+        resolution_reason="withdrawn_by_reporter",
+    )
 
     response = status(client, users["icc"], ref, "triaged")
     assert response.status_code == 409
@@ -272,7 +283,14 @@ def test_a_terminal_case_accepts_no_further_transition(client, users, report_pay
 def test_a_terminal_case_cannot_be_reassigned(client, users, report_payload):
     created = emergency(client, users, report_payload)
     ref = created["public_ref"]
-    status(client, users["icc"], ref, "closed_no_action", remark="No basis found.", resolution_reason="no_action_warranted")
+    status(
+        client,
+        users["icc"],
+        ref,
+        "closed_no_action",
+        remark="No basis found.",
+        resolution_reason="no_action_warranted",
+    )
 
     response = assign(client, users["icc"], ref)
     assert response.status_code == 409
@@ -326,7 +344,9 @@ def test_a_reason_that_does_not_fit_the_target_status_is_rejected(client, users,
 
 
 @pytest.mark.privacy
-def test_the_database_refuses_a_terminal_transition_with_no_reason(session, users, report_payload, client):
+def test_the_database_refuses_a_terminal_transition_with_no_reason(
+    session, users, report_payload, client
+):
     """The CHECK constraint, exercised directly — proof the rule holds even if
     the service layer were bypassed."""
     from sqlalchemy.exc import IntegrityError
@@ -349,7 +369,9 @@ def test_the_database_refuses_a_terminal_transition_with_no_reason(session, user
 
 
 @pytest.mark.privacy
-def test_the_database_refuses_a_reason_on_a_non_terminal_transition(session, users, report_payload, client):
+def test_the_database_refuses_a_reason_on_a_non_terminal_transition(
+    session, users, report_payload, client
+):
     from sqlalchemy.exc import IntegrityError
 
     created = create(client, users, report_payload)
@@ -405,9 +427,7 @@ def test_self_assigning_twice_is_a_conflict(client, users, report_payload):
     assert response.status_code == 409
 
 
-def test_a_second_icc_officer_can_be_assigned_by_id(
-    client, users, session, report_payload
-):
+def test_a_second_icc_officer_can_be_assigned_by_id(client, users, session, report_payload):
     from app.models import AppUser
     from app.models.enums import UserRole
 
@@ -435,7 +455,9 @@ def test_reassignment_releases_the_old_row_and_creates_a_new_one(
     from app.models.enums import UserRole
 
     second = AppUser(
-        firebase_uid="test-icc-3", role=UserRole.ICC, institutional_email="icc3@test.local",
+        firebase_uid="test-icc-3",
+        role=UserRole.ICC,
+        institutional_email="icc3@test.local",
         display_name="Third ICC Officer",
     )
     session.add(second)
@@ -589,18 +611,19 @@ def test_admin_can_view_but_cannot_manage_a_case(client, users, report_payload):
     incident (`can_view_report`); it does not get to move a case forward, for
     the same reason it does not get the narrative."""
     created = emergency(client, users, report_payload)
-    assert client.get(
-        f"/api/v1/incidents/{created['public_ref']}", headers=auth(users["admin"])
-    ).status_code == 200
+    assert (
+        client.get(
+            f"/api/v1/incidents/{created['public_ref']}", headers=auth(users["admin"])
+        ).status_code
+        == 200
+    )
 
     response = status(client, users["admin"], created["public_ref"], "triaged")
     assert response.status_code == 404
 
 
 @pytest.mark.privacy
-def test_an_anonymous_reporters_own_token_cannot_manage_their_case(
-    client, users, report_payload
-):
+def test_an_anonymous_reporters_own_token_cannot_manage_their_case(client, users, report_payload):
     """Holding the access token proves "this is my report," not "I am staff."
     The token grants `GET /reports/<ref>`, never a responder-plane write."""
     created = create(client, users, report_payload, anonymous=True)
@@ -699,7 +722,14 @@ def test_the_incident_detail_carries_full_case_history(client, users, report_pay
     ref = created["public_ref"]
     status(client, users["icc"], ref, "triaged")
     assign(client, users["icc"], ref)
-    status(client, users["icc"], ref, "under_review", remark="Looking into it.", visible_to_reporter=False)
+    status(
+        client,
+        users["icc"],
+        ref,
+        "under_review",
+        remark="Looking into it.",
+        visible_to_reporter=False,
+    )
 
     history = incident(client, users["icc"], ref)["case_status_history"]
     assert [row["to_status"] for row in history] == ["submitted", "triaged", "under_review"]
@@ -816,7 +846,9 @@ def test_a_reporter_cannot_change_their_own_case_status(client, users, report_pa
 def test_an_anonymous_case_can_be_fully_managed_without_any_attribution(
     client, users, session, report_payload
 ):
-    created = create(client, users, report_payload, anonymous=True, is_emergency=True, is_ongoing=True)
+    created = create(
+        client, users, report_payload, anonymous=True, is_emergency=True, is_ongoing=True
+    )
     ref = created["public_ref"]
 
     status(client, users["icc"], ref, "triaged")
@@ -859,9 +891,7 @@ def test_anonymous_status_updates_carry_no_identity_in_the_reporters_own_view(
 
 
 @pytest.mark.privacy
-def test_anonymous_case_assignment_carries_no_reporter_trace(
-    client, users, report_payload
-):
+def test_anonymous_case_assignment_carries_no_reporter_trace(client, users, report_payload):
     created = create(client, users, report_payload, anonymous=True)
     ref = created["public_ref"]
     assign(client, users["icc"], ref)
@@ -886,7 +916,14 @@ def test_a_terminal_case_leaves_the_queue(client, users, report_payload):
     before = client.get("/api/v1/incidents", headers=auth(users["icc"])).get_json()
     assert ref in [item["public_ref"] for item in before["items"]]
 
-    status(client, users["icc"], ref, "withdrawn", remark="Reporter withdrew.", resolution_reason="withdrawn_by_reporter")
+    status(
+        client,
+        users["icc"],
+        ref,
+        "withdrawn",
+        remark="Reporter withdrew.",
+        resolution_reason="withdrawn_by_reporter",
+    )
 
     after = client.get("/api/v1/incidents", headers=auth(users["icc"])).get_json()
     assert ref not in [item["public_ref"] for item in after["items"]]
@@ -900,7 +937,14 @@ def test_all_four_terminal_routes_empty_the_queue(client, users, report_payload)
         ("closed_no_action", "no_action_warranted"),
     ]:
         created = emergency(client, users, report_payload)
-        status(client, users["icc"], created["public_ref"], target, remark="x", resolution_reason=reason)
+        status(
+            client,
+            users["icc"],
+            created["public_ref"],
+            target,
+            remark="x",
+            resolution_reason=reason,
+        )
         refs.append(created["public_ref"])
 
     # A fourth taken all the way to resolved.
@@ -908,7 +952,9 @@ def test_all_four_terminal_routes_empty_the_queue(client, users, report_payload)
     status(client, users["icc"], resolved_ref, "triaged")
     assign(client, users["icc"], resolved_ref)
     status(client, users["icc"], resolved_ref, "under_review", remark="x")
-    status(client, users["icc"], resolved_ref, "resolved", remark="x", resolution_reason="action_taken")
+    status(
+        client, users["icc"], resolved_ref, "resolved", remark="x", resolution_reason="action_taken"
+    )
     refs.append(resolved_ref)
 
     queue_refs = {
@@ -936,7 +982,14 @@ def test_the_status_filter_cannot_reach_a_closed_case(client, users, report_payl
     """Filtering must narrow the open set, never widen past it."""
     created = emergency(client, users, report_payload)
     ref = created["public_ref"]
-    status(client, users["icc"], ref, "withdrawn", remark="x", resolution_reason="withdrawn_by_reporter")
+    status(
+        client,
+        users["icc"],
+        ref,
+        "withdrawn",
+        remark="x",
+        resolution_reason="withdrawn_by_reporter",
+    )
 
     response = client.get(
         "/api/v1/incidents", headers=auth(users["icc"]), query_string={"status": "withdrawn"}

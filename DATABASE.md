@@ -489,6 +489,63 @@ The callback columns were added for decision 1 and belong **here**, in the ident
 **Privacy** No identity. `public_note` is the one field an anonymous reporter can read back through their token, which is why it is separated from `responder_note` at the schema level rather than by a UI filter.
 **Why OPTIONAL:** the *representation* of anonymous emergency dispatch — decision 1's actual requirement — lives in `core.report.reporter_contactable` and `is_ongoing`, both CORE. This table tracks the response lifecycle, which is valuable but not required by the mandatory workflow.
 
+### Phase 6 — the emergency ("SOS") trigger *(migration 0007)*
+
+**No new table, no new state machine.** An SOS trigger creates a `core.report`
+row exactly like the normal flow — `is_emergency = true`, everything above
+this section applies unchanged — and reuses `core.emergency_dispatch` and
+`core.report_location_detail` (§ below) as-is. A responder still has to
+consciously call `raise_dispatch` for one to open; nothing here auto-creates
+a dispatch row. `IncidentService`'s own principle holds: *"Always a human
+action. Nothing in this system dispatches automatically."*
+
+Two permanent, migration-seeded data rows exist purely so an SOS trigger —
+which supplies no category and often no location — still satisfies every
+existing NOT NULL and routing requirement:
+
+| Row | Table | Why |
+|---|---|---|
+| `code = 'SYS-UNSPECIFIED'` | `core.campus_location` | `report.location_id` is `NOT NULL`, and no campus location is verified yet. `is_active = FALSE`, so `LocationRepository.list_active()` never offers it to a student — reachable only by `ReportService._resolve_emergency_location`. Because it is never `verified`, `LocationResolver.resolve()` already returns `unresolved` for it with no new code path. |
+| `code = 'SOS_EMERGENCY'` | `core.report_category` | `IncidentRepository._visible_to()` inner-joins `report_category` to find `routes_to_role` — a report with no category would be invisible to every responder queue. Routes to `security`. Unlike the location sentinel, `is_active = TRUE`: it must satisfy the same `CategoryRepository.get_active()` lookup the normal flow uses, and there is no harm in "Emergency SOS" appearing in `GET /categories` alongside the rest — it is an honest description, not a placeholder. `emergency_eligible = TRUE`, `kind = 'incident'`. |
+
+**Location handling.** `ReportService.submit_sos()` accepts an optional
+device coordinate. If given, it is compared against
+`LocationRepository.list_active()` — already-verified locations only — via a
+new `nearest_verified_location()` helper (a straight nearest-neighbour search
+using the same `haversine_metres` the resolver already uses, over a ~300m
+radius wider than the resolver's own 150m corroboration radius, since this is
+searching campus-wide with no prior selection to anchor against). A match
+becomes `report.location_id` directly; no match falls back to
+`SYS-UNSPECIFIED`. Either way, the coordinate is also passed into the
+existing `LocationResolver.resolve()` as a `device_gps` signal — the same
+`LocationSignalSource.DEVICE_GPS` enum value migration `0003` added in
+anticipation of exactly this, never written to before now — so the resulting
+`report_location_detail` row uses the same four-state vocabulary
+(`corroborated`/`unresolved`, in practice) as every other report, with no new
+resolution state.
+
+**Category.** Always `SOS_EMERGENCY` at creation. A responder may still call
+the existing `IncidentService.override_category` during investigation, the
+same as for any other report.
+
+**Identity.** Always `submission_mode = identified`,
+`reporter_contactable = true`. Anonymous SOS is deliberately not built:
+`identity.submission_quota`'s rate-limiting works *because* every submission
+is tied to a user id before identity is stripped, and reusing that safely for
+an unlinkable submitter is unsolved, tracked as future scope rather than
+solved under this feature's deadline.
+
+**Quota.** `_enforce_quota` is skipped whenever `is_emergency = true` — for
+the SOS path and for the pre-existing "flag as emergency" checkbox on the
+normal form alike. A quota exhausted by unrelated reports earlier the same
+day must never block a genuine emergency.
+
+**Duplicate presses.** `submit_sos()` checks the caller's own most recent
+report; a second trigger within two minutes of an existing, still-recent
+`is_emergency = true` report returns that report rather than creating
+another. No new column — the check reads `submitted_at` on the existing
+table.
+
 ---
 
 ## 9. Evidence schema

@@ -34,31 +34,62 @@ config = context.config
 if config.config_file_name is not None:
     from logging.config import fileConfig
 
-    fileConfig(config.config_file_name)
+    ini_path = config.config_file_name
+    if not os.path.exists(ini_path):
+        root_ini = pathlib.Path(__file__).resolve().parent.parent / "alembic.ini"
+        ini_path = str(root_ini) if root_ini.exists() else None
+    if ini_path and os.path.exists(ini_path):
+        fileConfig(ini_path)
 
 
 def _load_dotenv() -> None:
-    """Load .env from the project root if python-dotenv is installed."""
+    """Load .env from the project root or backend/.env if python-dotenv is installed."""
     try:
         from dotenv import load_dotenv
     except ImportError:  # optional dependency
         return
-    env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    root_dir = pathlib.Path(__file__).resolve().parent.parent
+    env_path = root_dir / ".env"
+    backend_env_path = root_dir / "backend" / ".env"
     if env_path.exists():
         load_dotenv(env_path)
+    elif backend_env_path.exists():
+        load_dotenv(backend_env_path)
 
 
 def _normalise(url: str) -> str:
-    """Force the psycopg 3 driver.
+    """Ensure a supported PostgreSQL driver is specified.
 
-    A bare ``postgresql://`` URL makes SQLAlchemy reach for psycopg2, which is
-    not a dependency of this project.  Rewriting here means the .env file can
-    use either form without producing a confusing ImportError.
+    Supports both psycopg 3 (psycopg) and psycopg 2 (psycopg2-binary).
     """
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    if url.startswith("postgresql+psycopg://"):
+        try:
+            import psycopg  # noqa: F401
+        except ImportError:
+            try:
+                import psycopg2  # noqa: F401
+                return url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
+            except ImportError:
+                pass
+        return url
+
+    if url.startswith("postgresql+psycopg2://"):
+        return url
+
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):  # some hosts still emit the legacy scheme
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
+        try:
+            import psycopg  # noqa: F401
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        except ImportError:
+            try:
+                import psycopg2  # noqa: F401
+                return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            except ImportError:
+                return url
+
     return url
 
 

@@ -9,6 +9,7 @@
  * — the context, the route guards, the forms, the API client — runs for real.
  */
 import { vi } from 'vitest'
+import { act } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 
 type Listener = (user: User | null) => void
@@ -67,7 +68,11 @@ export const firebaseAuthMock = {
     authState.listeners.add(next)
     // Asynchronous, exactly like the real SDK. Firing synchronously would hide
     // the `initialising` state every consumer has to handle.
-    queueMicrotask(() => next(authState.currentUser))
+    queueMicrotask(() => {
+      act(() => {
+        next(authState.currentUser)
+      })
+    })
     return () => authState.listeners.delete(next)
   }),
 
@@ -89,5 +94,11 @@ export const firebaseAuthMock = {
 
   signOut: vi.fn(async () => {
     setCurrentUser(null)
+  }),
+
+  updateProfile: vi.fn(async (user: User, profile: { displayName?: string }) => {
+    if (profile.displayName !== undefined) {
+      Object.assign(user, { displayName: profile.displayName })
+    }
   }),
 }

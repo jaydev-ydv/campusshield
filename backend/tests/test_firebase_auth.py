@@ -557,3 +557,17 @@ def test_credential_configuration_errors_do_not_echo_the_secret():
     with pytest.raises(FirebaseConfigurationError) as exc:
         verifier.initialize()
     assert "BEGIN PRIVATE KEY" not in str(exc.value)
+
+
+def test_verify_does_not_probe_adc_when_check_revoked_is_off():
+    """Verification without revocation checking verifies against public certificates
+    and must not probe metadata servers or raise DefaultCredentialsError."""
+    import time
+
+    verifier = FirebaseTokenVerifier(project_id="campusshield-verify-no-adc")
+    started = time.monotonic()
+    with pytest.raises(AuthenticationError) as exc:
+        verifier.verify("invalid.header.payload")
+    assert exc.value.code == "TOKEN_INVALID"
+    assert time.monotonic() - started < 3.0
+

@@ -9,12 +9,17 @@ policy it duplicates.
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from ..errors import MalformedRequestError
-from ..extensions import db
+from ..extensions import db, limiter
 from ..models.enums import AuditOutcome, ReporterRelationship
-from ..schemas.requests import CreateReportSchema, PaginationQuerySchema
+from ..schemas.requests import (
+    AttachEvidenceSchema,
+    CreateReportSchema,
+    PaginationQuerySchema,
+    TriggerEmergencySchema,
+)
 from ..schemas.responses import (
     paginated,
     serialize_report_detail,
@@ -31,7 +36,7 @@ from ..security.context import (
 from ..services.report_service import ReportSubmission
 from ..utils.correlation import current_request_id
 from ..utils.references import hash_client_ip, hash_user_agent
-from .dependencies import audit_repository, report_service
+from .dependencies import audit_repository, evidence_service, report_service
 
 bp = Blueprint("reports", __name__)
 
@@ -167,3 +172,76 @@ def get_report(public_ref: str):
     )
     db.session.commit()
     return jsonify(serialize_report_detail(detail)), 200
+
+
+@bp.post("/reports/emergency")
+@authenticated
+@limiter.limit("10 per hour")
+def trigger_emergency():
+    """Raise an emergency ("SOS") report.
+
+    The minimal-interaction counterpart to `POST /reports`: no category, no
+    narrative, no location choice. `ReportService.submit_sos` fills those in —
+    a system narrative, a location resolved from an optional device position
+    or the "unspecified" sentinel, and `is_emergency=True` — and reuses the
+    same creation path everything else in `submit()` already provides:
+    quota (bypassed here, deliberately, for emergencies), the public
+    reference, the append-only status trail, and the responder queue, which
+    already sorts emergencies first with no changes needed here.
+
+    A second call from the same reporter within the dedup window returns the
+    same report rather than creating another — see the duplicate-press
+    handling in `submit_sos`.
+    """
+    principal = require_principal()
+    payload = TriggerEmergencySchema().load(_json_body())
+
+    result = report_service().submit_sos(
+        principal,
+        latitude=payload["latitude"],
+        longitude=payload["longitude"],
+        reporter_relationship=ReporterRelationship(payload["reporter_relationship"]),
+    )
+
+    _audit(
+        "report.emergency",
+        result.report.public_ref,
+        AuditOutcome.SUCCESS,
+        has_location=payload["latitude"] is not None,
+    )
+    db.session.commit()
+
+    return jsonify(serialize_submission(result)), 201
+
+
+@bp.post("/reports/<string:public_ref>/evidence")
+@authenticated
+@limiter.limit("30 per hour")
+def attach_evidence(public_ref: str):
+    """Attach evidence to a report that already exists.
+
+    Built for the emergency path, where evidence is explicitly optional at
+    the moment of the alert and may be added once the immediate danger has
+    passed — but it works for any report the caller filed under their own
+    name. Reporter-only: see `can_attach_evidence` for why this is narrower
+    than who may view the report.
+    """
+    principal = require_principal()
+    payload = AttachEvidenceSchema().load(_json_body())
+
+    report = report_service().get_report_for_reporter(principal, public_ref=public_ref)
+    attached = evidence_service().attach_all(
+        payload["evidence_tokens"],
+        report.report_id,
+        limit=current_app.config["MAX_EVIDENCE_PER_REPORT"],
+    )
+
+    _audit(
+        "report.evidence_attached",
+        report.public_ref,
+        AuditOutcome.SUCCESS,
+        count=len(attached),
+    )
+    db.session.commit()
+
+    return jsonify({"evidence_ids": [str(e.evidence_id) for e in attached]}), 201

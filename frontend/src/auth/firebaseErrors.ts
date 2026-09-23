@@ -41,6 +41,7 @@ export function firebaseErrorMessage(error: unknown): string {
     const code = String((error as { code: unknown }).code)
     if (code in MESSAGES) return MESSAGES[code]
   }
+  if (error instanceof Error && error.message.trim()) return error.message
   return FALLBACK
 }
 
