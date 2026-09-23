@@ -570,4 +570,3 @@ def test_verify_does_not_probe_adc_when_check_revoked_is_off():
         verifier.verify("invalid.header.payload")
     assert exc.value.code == "TOKEN_INVALID"
     assert time.monotonic() - started < 3.0
-

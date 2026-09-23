@@ -145,9 +145,7 @@ def test_emergency_trigger_has_a_stricter_limit_than_the_global_default(
     limited_session.flush()
 
     statuses = [
-        limited_client.post(
-            "/api/v1/reports/emergency", json={}, headers=auth(user)
-        ).status_code
+        limited_client.post("/api/v1/reports/emergency", json={}, headers=auth(user)).status_code
         for _ in range(15)
     ]
 

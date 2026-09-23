@@ -81,6 +81,7 @@ def _normalise_db_url(url: str) -> str:
         except ImportError:
             try:
                 import psycopg2
+
                 return url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
             except ImportError:
                 pass
@@ -92,10 +93,12 @@ def _normalise_db_url(url: str) -> str:
     if url.startswith("postgresql://"):
         try:
             import psycopg  # noqa: F401
+
             return url.replace("postgresql://", "postgresql+psycopg://", 1)
         except ImportError:
             try:
                 import psycopg2  # noqa: F401
+
                 return url.replace("postgresql://", "postgresql+psycopg2://", 1)
             except ImportError:
                 return url

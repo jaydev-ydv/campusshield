@@ -62,6 +62,7 @@ def resolve_database_url() -> str | None:
                     url = line.split("=", 1)[1].strip()
     if url:
         from app.config import _normalise_db_url
+
         url = _normalise_db_url(url)
     return url or None
 
@@ -104,9 +105,7 @@ def main() -> int:
         # migrated database regardless of this script — not something dev
         # seeding created, so it should not read as one.
         locations = conn.execute(
-            text(
-                "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'"
-            )
+            text("SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'")
         ).scalar_one()
         verified = conn.execute(
             text("SELECT count(*) FROM core.campus_location WHERE coordinate_status = 'verified'")

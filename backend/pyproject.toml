@@ -8,6 +8,7 @@ requires-python = ">=3.10"
 line-length = 100
 target-version = "py310"
 extend-exclude = [".venv", "migrations/versions"]
+src = [".", "app"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
@@ -15,6 +16,9 @@ ignore = [
     "B008",   # function call in default argument — not a pattern used here
     "RUF012", # mutable class attrs need ClassVar — noisy with marshmallow Meta
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "E402"]

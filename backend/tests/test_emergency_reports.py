@@ -108,9 +108,7 @@ def test_sos_with_no_location_records_unresolved_no_signal(client, users, sessio
 def test_sos_near_a_verified_location_is_anchored_to_it(client, users, session, locations):
     """`locations['active']` is verified at (0.0, 0.0). A device position 11m
     away should match — well inside the emergency search radius."""
-    ref = _sos(client, users["student"], latitude=0.0001, longitude=0.0001).get_json()[
-        "public_ref"
-    ]
+    ref = _sos(client, users["student"], latitude=0.0001, longitude=0.0001).get_json()["public_ref"]
     row = session.execute(
         text(
             "SELECT l.code FROM core.report r "
@@ -125,9 +123,7 @@ def test_sos_near_a_verified_location_is_anchored_to_it(client, users, session, 
 def test_sos_near_a_verified_location_records_a_device_gps_signal(
     client, users, session, locations
 ):
-    ref = _sos(client, users["student"], latitude=0.0001, longitude=0.0001).get_json()[
-        "public_ref"
-    ]
+    ref = _sos(client, users["student"], latitude=0.0001, longitude=0.0001).get_json()["public_ref"]
     row = session.execute(
         text(
             "SELECT resolution, source FROM core.report_location_detail d "
@@ -189,8 +185,7 @@ def test_a_second_sos_after_the_dedup_window_creates_a_new_report(client, users,
     ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
     session.execute(
         text(
-            "UPDATE core.report SET submitted_at = :ts, occurred_at = :ts "
-            "WHERE public_ref = :ref"
+            "UPDATE core.report SET submitted_at = :ts, occurred_at = :ts WHERE public_ref = :ref"
         ),
         {"ts": ten_minutes_ago, "ref": first_ref},
     )
@@ -220,14 +215,10 @@ def test_sos_is_not_blocked_by_an_exhausted_daily_quota(client, users, session, 
     )
     session.flush()
 
-    first = client.post(
-        "/api/v1/reports", json=report_payload(), headers=auth(users["student"])
-    )
+    first = client.post("/api/v1/reports", json=report_payload(), headers=auth(users["student"]))
     assert first.status_code == 201
 
-    blocked = client.post(
-        "/api/v1/reports", json=report_payload(), headers=auth(users["student"])
-    )
+    blocked = client.post("/api/v1/reports", json=report_payload(), headers=auth(users["student"]))
     assert blocked.status_code == 429 or blocked.get_json()["error"]["code"] == "QUOTA_EXCEEDED"
 
     sos = _sos(client, users["student"])
@@ -344,9 +335,7 @@ def test_sos_requires_authentication(client):
 
 def test_a_student_cannot_see_another_students_sos_report(client, users):
     ref = _sos(client, users["student"]).get_json()["public_ref"]
-    response = client.get(
-        f"/api/v1/reports/{ref}", headers=auth(users["other_student"])
-    )
+    response = client.get(f"/api/v1/reports/{ref}", headers=auth(users["other_student"]))
     assert response.status_code == 404
 
 

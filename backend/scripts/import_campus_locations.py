@@ -442,6 +442,7 @@ def resolve_database_url(explicit: str | None) -> str:
     if not url:
         raise SystemExit("DATABASE_URL is not set and --database-url was not given")
     from app.config import _normalise_db_url
+
     return _normalise_db_url(url)
 
 

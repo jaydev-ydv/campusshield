@@ -113,6 +113,7 @@ def resolve_database_url() -> str | None:
                     url = line.split("=", 1)[1].strip()
     if url:
         from app.config import _normalise_db_url
+
         url = _normalise_db_url(url)
     return url or None
 

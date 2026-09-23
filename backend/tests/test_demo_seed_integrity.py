@@ -134,9 +134,7 @@ def test_demo_seed_is_idempotent(seeded: str):
     assert result.returncode == 0
     assert "0 inserted, 5 already present" in result.stdout
     assert (
-        _scalar(
-            seeded, "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'"
-        )
+        _scalar(seeded, "SELECT count(*) FROM core.campus_location WHERE code <> 'SYS-UNSPECIFIED'")
         == 5
     )
 
