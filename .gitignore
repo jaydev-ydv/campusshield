@@ -14,8 +14,11 @@ firebase-service-account.json
 service-account*.json
 firebase-key*.json
 
-# Dependencies
+# Dependencies & Build Artifacts
 node_modules/
+dist/
+coverage/
+*.tsbuildinfo
 
 # Python
 .venv/

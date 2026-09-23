@@ -10,6 +10,7 @@ boot at all.
 from __future__ import annotations
 
 import os
+import pathlib
 from dataclasses import dataclass, field
 
 
@@ -26,7 +27,6 @@ def _ensure_dotenv_loaded() -> None:
         return
     _dotenv_loaded = True
     try:
-        import pathlib
         from dotenv import load_dotenv
 
         load_dotenv()

@@ -67,9 +67,7 @@ export function AuthProvider({ children, authInstance, apiClient }: AuthProvider
   )
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null)
   const [account, setAccount] = useState<AccountIdentity | null>(null)
-  const [error, setError] = useState<string | null>(() =>
-    auth ? null : UNCONFIGURED_MESSAGE,
-  )
+  const [error, setError] = useState<string | null>(() => (auth ? null : UNCONFIGURED_MESSAGE))
 
   const client = useMemo(
     () =>

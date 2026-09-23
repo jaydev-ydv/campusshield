@@ -98,9 +98,9 @@ function ProvisioningGate({
           </Alert>
         )}
         <Alert tone="info" title="One more step">
-          Click the button below once to create your CampusShield account. Your Firebase sign-in
-          is already complete. New accounts are created as student accounts; staff access is
-          arranged by your institution.
+          Click the button below once to create your CampusShield account. Your Firebase
+          sign-in is already complete. New accounts are created as student accounts; staff
+          access is arranged by your institution.
         </Alert>
         <Button
           fullWidth

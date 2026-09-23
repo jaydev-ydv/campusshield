@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pathlib
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
@@ -103,7 +104,6 @@ class FirebaseTokenVerifier:
     # -- initialisation ----------------------------------------------------
 
     def _build_credential(self) -> Any:
-        import os
         from firebase_admin import credentials
 
         if self._credentials_json:
@@ -303,8 +303,8 @@ class FirebaseTokenVerifier:
             logger.info("rejected an invalid Firebase ID token: %s", type(exc).__name__)
             raise AuthenticationError("The ID token is invalid.", code="TOKEN_INVALID") from exc
         except Exception as exc:
-            from google.auth.exceptions import DefaultCredentialsError, GoogleAuthError
             from firebase_admin.exceptions import FirebaseError
+            from google.auth.exceptions import DefaultCredentialsError, GoogleAuthError
 
             if isinstance(exc, DefaultCredentialsError):
                 logger.error("Firebase default credentials error: %s", exc)
