@@ -27,7 +27,7 @@ from ..errors import (
     QuotaExceededError,
     ValidationError,
 )
-from ..models import CampusLocation, Report
+from ..models import CampusLocation, Report, ReportLocationDetail
 from ..models.enums import (
     LocationSignalSource,
     ReporterRelationship,
@@ -57,6 +57,7 @@ from ..utils.references import (
 )
 from .evidence_service import hash_token as hash_evidence_token
 from .location_service import LocationResolver, LocationSignal, nearest_verified_location
+from .notification_service import NotificationService
 from .triage_service import TriageService
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,9 @@ class ReportSubmission:
 @dataclass(slots=True)
 class SubmissionResult:
     report: Report
-    access_token: str | None
+    access_token: str | None = None
+    location_detail: ReportLocationDetail | None = None
+    location_status: str | None = None
     """Raw token, present only for anonymous submissions.
 
     Returned to the caller exactly once and never persisted — only its SHA-256
@@ -154,6 +157,7 @@ class ReportService:
         max_evidence: int = 5,
         corroboration_radius_m: int = 150,
         triage: TriageService | None = None,
+        notifications: NotificationService | None = None,
     ) -> None:
         self._reports = reports
         self._evidence = evidence
@@ -167,6 +171,7 @@ class ReportService:
         # Optional so the service is constructible without a model — tests that
         # care about reporting, and any deployment with no artifact, run without.
         self._triage = triage
+        self._notifications = notifications
 
     # -- creation ----------------------------------------------------------
 
@@ -202,6 +207,8 @@ class ReportService:
         *,
         latitude: float | None = None,
         longitude: float | None = None,
+        accuracy: float | None = None,
+        captured_at: datetime | None = None,
         reporter_relationship: ReporterRelationship = ReporterRelationship.AFFECTED,
         now: datetime | None = None,
     ) -> SubmissionResult:
@@ -258,9 +265,30 @@ class ReportService:
             and recent[0].is_emergency
             and (now - ensure_aware(recent[0].submitted_at)) < EMERGENCY_DEDUP_WINDOW
         ):
-            return SubmissionResult(report=recent[0], access_token=None)
+            loc_detail = self._reports.get_location_detail(recent[0].report_id)
+            status = (
+                "gps_captured"
+                if (
+                    loc_detail
+                    and loc_detail.source == LocationSignalSource.DEVICE_GPS
+                    and loc_detail.signal_latitude is not None
+                )
+                else (
+                    "manual"
+                    if recent[0].location.code != EMERGENCY_SENTINEL_LOCATION_CODE
+                    else "unavailable"
+                )
+            )
+            return SubmissionResult(
+                report=recent[0],
+                access_token=None,
+                location_detail=loc_detail,
+                location_status=status,
+            )
 
-        location, signal = self._resolve_emergency_location(latitude, longitude, now)
+        location, signal = self._resolve_emergency_location(
+            latitude, longitude, now, accuracy=accuracy, captured_at=captured_at
+        )
         category = self._categories.get_by_code(EMERGENCY_SENTINEL_CATEGORY_CODE)
         if category is None:
             # Same guarantee as the location sentinel: migration 0007 seeds
@@ -291,10 +319,19 @@ class ReportService:
             contact_consent=True,
             device_location=signal,
         )
-        return self._create(principal, submission, location, now=now)
+        result = self._create(principal, submission, location, now=now)
+        if self._notifications is not None:
+            self._notifications.notify_emergency(result.report)
+        return result
 
     def _resolve_emergency_location(
-        self, latitude: float | None, longitude: float | None, now: datetime
+        self,
+        latitude: float | None,
+        longitude: float | None,
+        now: datetime,
+        *,
+        accuracy: float | None = None,
+        captured_at: datetime | None = None,
     ) -> tuple[CampusLocation, LocationSignal | None]:
         """The location an SOS anchors to, and the signal that justifies it.
 
@@ -311,7 +348,8 @@ class ReportService:
                 latitude=latitude,
                 longitude=longitude,
                 source=LocationSignalSource.DEVICE_GPS,
-                captured_at=now,
+                captured_at=captured_at or now,
+                accuracy=accuracy,
             )
             matched = nearest_verified_location(latitude, longitude, self._locations.list_active())
             if matched is not None:
@@ -437,7 +475,7 @@ class ReportService:
         # above from what the student chose and is not revisited here — the
         # resolver's output goes into a separate table whose whole purpose is
         # that it cannot be mistaken for the incident location.
-        self._reports.set_location_detail(
+        loc_detail = self._reports.set_location_detail(
             report.report_id, self._resolver.resolve(location, signal)
         )
 
@@ -457,7 +495,23 @@ class ReportService:
             submission.is_emergency,
             category.code if category is not None else "none",
         )
-        return SubmissionResult(report=report, access_token=access_token)
+        if location.code == EMERGENCY_SENTINEL_LOCATION_CODE:
+            location_status = (
+                "gps_captured"
+                if (signal and signal.source == LocationSignalSource.DEVICE_GPS)
+                else "unavailable"
+            )
+        elif signal and signal.source == LocationSignalSource.DEVICE_GPS:
+            location_status = "gps_captured"
+        else:
+            location_status = "manual"
+
+        return SubmissionResult(
+            report=report,
+            access_token=access_token,
+            location_detail=loc_detail,
+            location_status=location_status,
+        )
 
     def _attach_evidence(self, report: Report, tokens: list[str]) -> LocationSignal | None:
         """Claim staged uploads onto the report.

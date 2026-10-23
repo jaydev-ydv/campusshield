@@ -45,6 +45,9 @@ import type { CampusLocation } from '../lib/api'
  * a visibly different style and an appended "(DEMO)" in its tooltip; if any
  * location shown is synthetic, a banner says so above the map as well.
  */
+const PRESIDENCY_DEFAULT_CENTER: L.LatLngTuple = [13.16924, 77.534946]
+const PRESIDENCY_DEFAULT_ZOOM = 16
+
 export function LocationMap({
   locations,
   selectedId,
@@ -66,6 +69,8 @@ export function LocationMap({
     if (mappable.length === 0 || !container.current || map.current) return
 
     const instance = L.map(container.current, {
+      center: PRESIDENCY_DEFAULT_CENTER,
+      zoom: PRESIDENCY_DEFAULT_ZOOM,
       zoomControl: true,
       scrollWheelZoom: false,
     })
@@ -77,7 +82,16 @@ export function LocationMap({
     markerLayer.current = L.layerGroup().addTo(instance)
     map.current = instance
 
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && container.current) {
+      observer = new ResizeObserver(() => {
+        instance.invalidateSize()
+      })
+      observer.observe(container.current)
+    }
+
     return () => {
+      observer?.disconnect()
       instance.remove()
       map.current = null
       markerLayer.current = null
@@ -124,7 +138,14 @@ export function LocationMap({
       layer.addLayer(marker)
     }
 
-    if (points.length > 0) {
+    const selectedLoc = mappable.find((loc) => loc.location_id === selectedId)
+    if (selectedLoc && selectedLoc.latitude !== null && selectedLoc.longitude !== null) {
+      instance.setView(
+        [selectedLoc.latitude, selectedLoc.longitude],
+        Math.max(instance.getZoom(), 16),
+        { animate: true },
+      )
+    } else if (points.length > 0) {
       instance.fitBounds(L.latLngBounds(points).pad(0.25), { maxZoom: 18 })
     }
   }, [mappable, selectedId, onSelect])

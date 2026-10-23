@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
@@ -99,7 +99,12 @@ class IncidentRepository:
             .where(Report.current_status.not_in(CLOSED_STATUSES))
         )
         if role is not UserRole.ADMIN:
-            stmt = stmt.where(ReportCategory.routes_to_role == role)
+            stmt = stmt.where(
+                or_(
+                    ReportCategory.routes_to_role == role,
+                    Report.is_emergency.is_(True),
+                )
+            )
         if statuses:
             stmt = stmt.where(Report.current_status.in_(statuses))
         return stmt

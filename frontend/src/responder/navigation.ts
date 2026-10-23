@@ -119,6 +119,52 @@ export class OpenStreetMapNavigationProvider implements NavigationProvider {
 }
 
 /**
+ * Construct Google Maps navigation / directions URL from validated coordinates.
+ */
+export function googleMapsNavigationUrl(latitude: number, longitude: number): string {
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw new Error(`Invalid navigation coordinates: ${latitude}, ${longitude}`)
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${latitude},${longitude}`)}`
+}
+
+/**
+ * Google Maps navigation in a browser tab or native app handler.
+ */
+export class GoogleMapsNavigationProvider implements NavigationProvider {
+  readonly name = 'googlemaps'
+
+  target(destination: Destination): NavigationTarget {
+    if (
+      !destination.navigable ||
+      destination.latitude === null ||
+      destination.longitude === null ||
+      !Number.isFinite(destination.latitude) ||
+      !Number.isFinite(destination.longitude)
+    ) {
+      return {
+        url: null,
+        label: 'No mapped coordinate for this location',
+        provider: this.name,
+      }
+    }
+    const { latitude, longitude, name } = destination
+    return {
+      url: googleMapsNavigationUrl(latitude, longitude),
+      label: `Navigate to ${name} via Google Maps`,
+      provider: this.name,
+    }
+  }
+}
+
+/**
  * Pick a provider for the device at hand.
  *
  * A phone in someone's hand on campus gets `geo:` and its own map apps; a

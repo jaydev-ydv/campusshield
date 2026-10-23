@@ -1,0 +1,19 @@
+code,name,location_type,zone_code,latitude,longitude,coordinate_status,coordinate_source,coordinate_captured_at,is_indoor,has_lighting,has_cctv,footfall_band,dispatch_note,is_active
+main-gate,Presidency Main Gate,gate,Z-ACCESS,13.171780,77.536332,provisional,User-supplied campus coordinate data (Presidency University),,false,,,,,false
+road-towardsclg,Presidency University Rd near lawn,circulation,Z-ACCESS,13.170538,77.535618,provisional,User-supplied campus coordinate data (Presidency University),,false,,,,,false
+function-lawn,Presidency Function Lawn,open_ground,Z-CENTRAL,13.170650,77.536080,provisional,User-supplied campus coordinate data (Presidency University),,false,,,,,false
+university-fountain,University Fountain,amenity,Z-CENTRAL,13.169240,77.534946,provisional,User-supplied campus coordinate data (Presidency University),,false,,,,,false
+cricket-ground,Cricket Ground,sports,Z-CENTRAL,13.170437,77.535095,provisional,User-supplied campus coordinate data (Presidency University),,false,,,,,false
+football-ground,Football Ground,sports,Z-CENTRAL,13.170382,77.532394,provisional,User-supplied campus coordinate data (Presidency University),,false,,,,,false
+registration-office,Registration Office,admin,Z-ACAD,13.169109,77.534057,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+d-block,D Block,academic,Z-ACAD,13.169214,77.533737,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+l-block,L Block,academic,Z-ACAD,13.168323,77.533247,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+e-block,E Block,academic,Z-ACAD,13.168879,77.533583,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+f-block,F Block,academic,Z-ACAD,13.168567,77.533421,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+main-library,Main Library,library,Z-ACAD,13.168002,77.533471,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+p-block,P Block,academic,Z-ACAD,13.167963,77.533738,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+n-block,N Block,academic,Z-ACAD,13.168154,77.533824,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+k-block,K Block,academic,Z-ACAD,13.168396,77.533856,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+q-block,Q Block,academic,Z-ACAD,13.167647,77.533567,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+r-block,R Block,academic,Z-ACAD,13.167474,77.533499,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false
+u-block,U Block,academic,Z-ACAD,13.167259,77.533422,provisional,User-supplied campus coordinate data (Presidency University),,true,,,,,false

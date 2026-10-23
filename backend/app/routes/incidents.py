@@ -16,8 +16,8 @@ from contextlib import contextmanager
 from flask import Blueprint, jsonify, request
 
 from ..errors import AppError, MalformedRequestError
-from ..extensions import db
-from ..models.enums import AuditOutcome, ReportStatus
+from ..extensions import db, limiter
+from ..models.enums import AuditOutcome, CoordinateStatus, ReportStatus
 from ..schemas.responses import (
     serialize_assignment,
     serialize_case_status_entry,
@@ -30,6 +30,7 @@ from ..utils.correlation import current_request_id
 from .dependencies import audit_repository, case_service, incident_service
 
 bp = Blueprint("incidents", __name__)
+limiter.exempt(bp)
 
 MAX_PAGE = 200
 
@@ -141,8 +142,17 @@ def list_incidents():
                 # Said by the server, not assumed by the client: with no verified
                 # coordinates there is nothing to draw, and the responder
                 # interface must say so rather than render an empty campus and
-                # let it read as "no incidents".
-                "mapping_available": any(row.location.latitude is not None for row in rows),
+                "mapping_available": any(
+                    (
+                        row.location.latitude is not None
+                        and row.location.coordinate_status is CoordinateStatus.VERIFIED
+                    )
+                    or (
+                        row.location_detail is not None
+                        and row.location_detail.signal_latitude is not None
+                    )
+                    for row in rows
+                ),
             }
         ),
         200,

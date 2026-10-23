@@ -97,6 +97,7 @@ class ReportLocationDetail(Base):
     signal_latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     signal_longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     distance_m: Mapped[int | None] = mapped_column(Integer)
+    signal_accuracy_m: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     signal_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     conflict_note: Mapped[str | None] = mapped_column(String)
     resolved_at: Mapped[datetime] = mapped_column(

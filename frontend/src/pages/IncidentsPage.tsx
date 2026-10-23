@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '../auth/useAuth'
 import { useCatalog } from '../hooks/useCatalog'
@@ -17,9 +17,12 @@ import {
   type ResolutionReason,
 } from '../lib/api'
 import { ApiError } from '../lib/apiClient'
+import { useEmergencyAudioAlert } from '../responder/emergencyAudio'
 import { IncidentDetailPanel } from '../responder/IncidentDetail'
 import { IncidentMap } from '../responder/IncidentMap'
 import { defaultNavigationProvider } from '../responder/navigation'
+
+const POLL_INTERVAL_MS = 10_000
 
 /** Only statuses that can actually appear in an open queue. The terminal
  *  ones never do — offering them as filter chips would just be confusing. */
@@ -83,7 +86,17 @@ export function IncidentsPage() {
   const navigation = useMemo(() => defaultNavigationProvider(), [])
   // Reused rather than fetched again: the responder needs the category list only
   // to record a different judgement, and the dashboard already loads it.
-  const { categories } = useCatalog()
+  const { locations, categories } = useCatalog()
+
+  const { audioStatus, enableAudio, playTestSound, toggleMute, playEmergencyAlert } =
+    useEmergencyAudioAlert()
+
+  const seenIncidentRefs = useRef<Set<string>>(new Set())
+  const isInitialLoad = useRef<boolean>(true)
+  const [newEmergencyAlert, setNewEmergencyAlert] = useState<{
+    count: number
+    refs: string[]
+  } | null>(null)
 
   /** Reload is a nonce bump, and the fetch lives in the effect below.
    *
@@ -94,24 +107,63 @@ export function IncidentsPage() {
 
   useEffect(() => {
     let cancelled = false
-    void api
-      .incidents(100, 0, statusFilter.length > 0 ? statusFilter : undefined)
-      .then((page) => {
-        // The responder may have navigated away while this was in flight.
-        if (cancelled) return
-        setIncidents(page.items)
-        setMappingAvailable(page.mapping_available)
-        setQueueError(null)
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return
-        setIncidents([])
-        setQueueError(cause)
-      })
+
+    const fetchQueue = () => {
+      void api
+        .incidents(100, 0, statusFilter.length > 0 ? statusFilter : undefined)
+        .then((page) => {
+          // The responder may have navigated away while this was in flight.
+          if (cancelled) return
+          setIncidents(page.items)
+          setMappingAvailable(page.mapping_available)
+          setQueueError(null)
+
+          if (isInitialLoad.current) {
+            // First load: seed known incidents so we never beep for existing items
+            for (const item of page.items) {
+              seenIncidentRefs.current.add(item.public_ref)
+            }
+            isInitialLoad.current = false
+          } else {
+            // Subsequent poll/refresh: detect genuinely new arrivals
+            const brandNew = page.items.filter(
+              (item) => !seenIncidentRefs.current.has(item.public_ref),
+            )
+            for (const item of brandNew) {
+              seenIncidentRefs.current.add(item.public_ref)
+            }
+
+            const newEmergencies = brandNew.filter(
+              (item) =>
+                item.is_emergency ||
+                item.category?.code === 'SOS_EMERGENCY' ||
+                item.category?.code === 'EMERGENCY_SOS',
+            )
+
+            if (newEmergencies.length > 0) {
+              void playEmergencyAlert()
+              setNewEmergencyAlert({
+                count: newEmergencies.length,
+                refs: newEmergencies.map((e) => e.public_ref),
+              })
+            }
+          }
+        })
+        .catch((cause: unknown) => {
+          if (cancelled) return
+          setIncidents([])
+          setQueueError(cause)
+        })
+    }
+
+    fetchQueue()
+    const timer = window.setInterval(fetchQueue, POLL_INTERVAL_MS)
+
     return () => {
       cancelled = true
+      window.clearInterval(timer)
     }
-  }, [api, queueNonce, statusFilter])
+  }, [api, queueNonce, statusFilter, playEmergencyAlert])
 
   const openIncident = useCallback(
     async (publicRef: string) => {
@@ -292,13 +344,132 @@ export function IncidentsPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-ink-900 text-xl font-medium">Active incidents</h1>
-          <p className="text-ink-600 mt-1 text-sm leading-relaxed">
-            Reports routed to your role that are still open. Ordered by urgency, then by how
-            recently they arrived.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-ink-900 text-xl font-medium">Active incidents</h1>
+            <p className="text-ink-600 mt-1 text-sm leading-relaxed">
+              Reports routed to your role that are still open. Ordered by urgency, then by how
+              recently they arrived.
+            </p>
+          </div>
+
+          {/* Sound alert control */}
+          <div className="flex shrink-0 items-center gap-2" data-testid="sound-alerts-control">
+            {audioStatus === 'uninitialized' && (
+              <button
+                type="button"
+                onClick={() => void enableAudio()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 shadow-xs"
+                data-testid="enable-sound-button"
+                aria-label="Enable sound alerts for new emergency SOS"
+              >
+                <span aria-hidden="true">🔊</span> Enable sound alerts
+              </button>
+            )}
+
+            {audioStatus === 'enabled' && (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Sound alerts ON
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void playTestSound()}
+                  className="rounded-lg border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 shadow-xs"
+                  data-testid="test-sound-button"
+                  aria-label="Test sound alert"
+                  title="Play a test beep to verify volume"
+                >
+                  Test sound
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="rounded-lg border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 shadow-xs"
+                  data-testid="mute-sound-button"
+                  aria-label="Mute sound alerts"
+                >
+                  Mute
+                </button>
+              </div>
+            )}
+
+            {audioStatus === 'muted' && (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-600">
+                  <span className="h-2 w-2 rounded-full bg-ink-400" />
+                  Sound alerts MUTED
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="rounded-lg border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 shadow-xs"
+                  data-testid="unmute-sound-button"
+                  aria-label="Unmute sound alerts"
+                >
+                  Unmute
+                </button>
+              </div>
+            )}
+
+            {audioStatus === 'blocked' && (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+                  Audio blocked by browser
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void enableAudio()}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-50 shadow-xs"
+                  data-testid="enable-sound-button"
+                  aria-label="Enable sound alerts for new emergency SOS"
+                >
+                  <span aria-hidden="true">🔊</span> Enable sound alerts
+                </button>
+              </div>
+            )}
+
+            {audioStatus === 'unsupported' && (
+              <span className="text-ink-400 text-xs italic">Audio alerts unsupported</span>
+            )}
+          </div>
         </div>
+
+        {newEmergencyAlert && (
+          <div
+            role="alert"
+            data-testid="new-emergency-alert"
+            className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-900 shadow-sm transition-all"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3.5 w-3.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-600"></span>
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-red-900">
+                    🚨 New Emergency Incident Received ({newEmergencyAlert.count})
+                  </h3>
+                  <p className="mt-0.5 text-xs text-red-700">
+                    {newEmergencyAlert.count === 1
+                      ? `Emergency incident ${newEmergencyAlert.refs.join(', ')} just arrived and is open in queue.`
+                      : `${newEmergencyAlert.count} new emergency incidents arrived (${newEmergencyAlert.refs.join(', ')}) and are open in queue.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewEmergencyAlert(null)}
+                className="text-xs font-medium text-red-700 hover:text-red-900 hover:underline"
+                aria-label="Dismiss new emergency alert"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {attentionCount > 0 && (
           <div data-testid="attention-banner">
@@ -371,6 +542,7 @@ export function IncidentsPage() {
           <>
             <IncidentMap
               incidents={incidents}
+              campusLocations={locations ?? undefined}
               selectedRef={selectedRef}
               onSelect={(ref) => void openIncident(ref)}
             />

@@ -56,6 +56,7 @@ export interface CampusLocation {
   zone: { zone_id: number; code: string; name: string } | null
   latitude: number | null
   longitude: number | null
+  coordinate_status?: 'required' | 'provisional' | 'verified'
   is_indoor: boolean | null
   dispatch_note: string | null
   /** True only for a demo/development fixture — never a real surveyed location. */
@@ -112,14 +113,24 @@ export interface ReportDetail extends ReportSummary {
 export interface ReportSubmissionResult extends ReportSummary {
   access_token?: string
   access_token_notice?: string
+  location_status?: 'gps_captured' | 'manual' | 'unavailable' | string
+  coordinates?: {
+    latitude: number
+    longitude: number
+    accuracy_m: number | null
+    captured_at: string | null
+    source: string
+  }
 }
 
-/** Body for `POST /reports/emergency`. Both coordinates are optional and
- *  must be sent together — see `getEmergencyPosition` in `lib/geolocation.ts`
- *  for how they're read from the browser. */
+/** Body for `POST /reports/emergency`. Coordinates and accuracy are optional —
+ *  see `getEmergencyPosition` in `lib/geolocation.ts` for how they're read
+ *  from the browser. */
 export interface TriggerEmergencyPayload {
   latitude?: number
   longitude?: number
+  accuracy?: number
+  captured_at?: string
   reporter_relationship?: ReporterRelationship
 }
 
@@ -294,6 +305,9 @@ export interface LocationSignal {
   distance_m: number | null
   signal_captured_at: string | null
   note: string | null
+  signal_latitude?: number | null
+  signal_longitude?: number | null
+  accuracy_m?: number | null
 }
 
 export interface DispatchRecord {
@@ -319,6 +333,7 @@ export interface IncidentSummary {
     latitude: number | null
     longitude: number | null
     is_mapped: boolean
+    coordinate_status?: 'required' | 'provisional' | 'verified'
     is_synthetic: boolean
   }
   location_hint: string | null
@@ -359,6 +374,9 @@ export interface Destination {
   location_hint: string | null
   /** True only for a demo/development fixture — never a real surveyed destination. */
   is_synthetic: boolean
+  is_gps?: boolean
+  accuracy_m?: number | null
+  captured_at?: string | null
 }
 
 /**

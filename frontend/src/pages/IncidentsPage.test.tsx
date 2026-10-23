@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { IncidentsPage } from './IncidentsPage'
 import type { AccountIdentity, IncidentSummary } from '../lib/api'
+import { EmergencyAudioService } from '../responder/emergencyAudio'
 import {
   ACCOUNT,
   createFetchStub,
@@ -143,7 +144,10 @@ function responderRoutes(
   })
 }
 
-function renderPage(routes = responderRoutes(), account: AccountIdentity = ICC_ACCOUNT) {
+function renderPage(
+  routes: Record<string, StubRoute> = responderRoutes(),
+  account: AccountIdentity = ICC_ACCOUNT,
+) {
   setCurrentUser(makeUser())
   const fetchImpl = createFetchStub(routes)
   const view = renderWithAuth(<IncidentsPage />, { fetchImpl })
@@ -233,6 +237,29 @@ describe('IncidentsPage — the unmapped campus', () => {
 
     await screen.findByRole('application', { name: /campus incident map/i })
     expect(await screen.findByTestId('demo-data-notice')).toHaveTextContent(/demo/i)
+  })
+
+  it('renders a map for an emergency incident with real device GPS coordinates even when campus location is unmapped', async () => {
+    const gpsEmergencyIncident: IncidentSummary = {
+      ...EMERGENCY_INCIDENT,
+      public_ref: 'CS-2026-SOSGPS',
+      location_signal: {
+        resolution: 'unresolved',
+        source: 'device_gps',
+        distance_m: null,
+        signal_captured_at: '2026-08-11T14:20:00Z',
+        note: null,
+        signal_latitude: 12.9716,
+        signal_longitude: 77.5946,
+        accuracy_m: 12.0,
+      },
+    }
+    renderPage(responderRoutes([gpsEmergencyIncident]))
+
+    expect(
+      await screen.findByRole('application', { name: /campus incident map/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('map-empty-state')).not.toBeInTheDocument()
   })
 })
 
@@ -383,6 +410,36 @@ describe('IncidentsPage — incident detail', () => {
 
     const link = await screen.findByRole('link', { name: /navigate to/i })
     expect(link).toHaveAttribute('href', expect.stringContaining('12.5'))
+
+    const googleMapsLink = screen.getByRole('link', { name: /open in google maps/i })
+    expect(googleMapsLink).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/dir/?api=1&destination=12.5%2C77.5',
+    )
+  })
+
+  it('displays GPS emergency details with coordinates, accuracy and capture time', async () => {
+    const gpsDestination = {
+      ...DESTINATION,
+      latitude: 12.9716,
+      longitude: 77.5946,
+      is_mapped: true,
+      navigable: true,
+      is_gps: true,
+      accuracy_m: 8.5,
+      captured_at: '2026-08-11T14:20:00Z',
+    }
+    await openFirst(
+      responderRoutes([UNMAPPED_INCIDENT], {
+        '/incidents/CS-2026-7QK4M2': {
+          body: detailFor(UNMAPPED_INCIDENT, { destination: gpsDestination }),
+        },
+      }),
+    )
+
+    const gpsBox = await screen.findByTestId('gps-emergency-details')
+    expect(gpsBox).toHaveTextContent(/12.971600, 77.594600/)
+    expect(gpsBox).toHaveTextContent(/accuracy ±9m/i)
   })
 
   it('shows no demo notice or navigation caveat for a real-style destination', async () => {
@@ -960,5 +1017,431 @@ describe('IncidentsPage — case lifecycle privacy', () => {
 
     const markup = document.body.innerHTML
     expect(markup).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+  })
+})
+
+describe('IncidentsPage — Emergency audible and visual alerts', () => {
+  it('does not sound an alert on initial dashboard load for existing incidents', async () => {
+    const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+    vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+
+    renderPage(responderRoutes([EMERGENCY_INCIDENT]))
+
+    expect(await screen.findByText('CS-2026-URGENT')).toBeInTheDocument()
+    expect(beepSpy).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('new-emergency-alert')).not.toBeInTheDocument()
+  })
+
+  it('allows the responder to enable sound alerts and toggle mute', async () => {
+    vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+    let status = 'uninitialized'
+    vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+      () => status as 'uninitialized' | 'enabled' | 'muted',
+    )
+    vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+      status = 'enabled'
+      return true
+    })
+    vi.spyOn(EmergencyAudioService.prototype, 'toggleMute').mockImplementation(() => {
+      status = status === 'muted' ? 'enabled' : 'muted'
+      return status === 'muted'
+    })
+
+    renderPage(responderRoutes([UNMAPPED_INCIDENT]))
+
+    expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+    const enableBtn = screen.getByTestId('enable-sound-button')
+    enableBtn.click()
+
+    await waitFor(() => {
+      expect(screen.getByText(/sound alerts on/i)).toBeInTheDocument()
+    })
+
+    const muteBtn = screen.getByTestId('mute-sound-button')
+    muteBtn.click()
+
+    await waitFor(() => {
+      expect(screen.getByText(/sound alerts muted/i)).toBeInTheDocument()
+    })
+
+    const unmuteBtn = screen.getByTestId('unmute-sound-button')
+    unmuteBtn.click()
+
+    await waitFor(() => {
+      expect(screen.getByText(/sound alerts on/i)).toBeInTheDocument()
+    })
+  })
+
+  it('triggers emergency beep and displays visual banner when a new emergency SOS arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+      expect(beepSpy).not.toHaveBeenCalled()
+
+      screen.getByTestId('enable-sound-button').click()
+      await waitFor(() => {
+        expect(screen.getByText(/sound alerts on/i)).toBeInTheDocument()
+      })
+
+      // Next poll delivers a new emergency SOS
+      routes['/incidents'] = {
+        body: {
+          items: [UNMAPPED_INCIDENT, EMERGENCY_INCIDENT],
+          pagination: { total: 2, limit: 100, offset: 0, returned: 2 },
+          mapping_available: false,
+        },
+      }
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('new-emergency-alert')).toBeInTheDocument()
+      })
+      expect(beepSpy).toHaveBeenCalledTimes(1)
+      expect(
+        within(screen.getByTestId('new-emergency-alert')).getByText(/CS-2026-URGENT/i),
+      ).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not trigger repeated beeps on repeated polls with the same emergency incident', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+
+      screen.getByTestId('enable-sound-button').click()
+      await waitFor(() => {
+        expect(screen.getByText(/sound alerts on/i)).toBeInTheDocument()
+      })
+
+      routes['/incidents'] = {
+        body: {
+          items: [UNMAPPED_INCIDENT, EMERGENCY_INCIDENT],
+          pagination: { total: 2, limit: 100, offset: 0, returned: 2 },
+          mapping_available: false,
+        },
+      }
+
+      // First poll
+      await vi.advanceTimersByTimeAsync(10_000)
+      await waitFor(() => {
+        expect(beepSpy).toHaveBeenCalledTimes(1)
+      })
+
+      // Second poll with identical items
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(beepSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not trigger an emergency beep for a status update to an existing incident', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([EMERGENCY_INCIDENT])
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-URGENT')).toBeInTheDocument()
+      screen.getByTestId('enable-sound-button').click()
+
+      const updatedEmergency: IncidentSummary = {
+        ...EMERGENCY_INCIDENT,
+        status: 'triaged',
+      }
+      routes['/incidents'] = {
+        body: {
+          items: [updatedEmergency],
+          pagination: { total: 1, limit: 100, offset: 0, returned: 1 },
+          mapping_available: false,
+        },
+      }
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(beepSpy).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('new-emergency-alert')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not trigger an emergency beep when a new non-emergency report arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+      screen.getByTestId('enable-sound-button').click()
+
+      const newOrdinaryReport: IncidentSummary = {
+        ...UNMAPPED_INCIDENT,
+        public_ref: 'CS-2026-ORDINARY-2',
+        is_emergency: false,
+        category: { category_id: 2, code: 'LOST_FOUND', label: 'Lost property' },
+      }
+      routes['/incidents'] = {
+        body: {
+          items: [UNMAPPED_INCIDENT, newOrdinaryReport],
+          pagination: { total: 2, limit: 100, offset: 0, returned: 2 },
+          mapping_available: false,
+        },
+      }
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(beepSpy).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('new-emergency-alert')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('handles multiple simultaneous new emergencies by beeping and showing combined count in banner', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+      screen.getByTestId('enable-sound-button').click()
+
+      const emergency1: IncidentSummary = {
+        ...EMERGENCY_INCIDENT,
+        public_ref: 'CS-2026-SOS-1',
+      }
+      const emergency2: IncidentSummary = {
+        ...EMERGENCY_INCIDENT,
+        public_ref: 'CS-2026-SOS-2',
+      }
+
+      routes['/incidents'] = {
+        body: {
+          items: [UNMAPPED_INCIDENT, emergency1, emergency2],
+          pagination: { total: 3, limit: 100, offset: 0, returned: 3 },
+          mapping_available: false,
+        },
+      }
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('new-emergency-alert')).toBeInTheDocument()
+      })
+      const alertBanner = screen.getByTestId('new-emergency-alert')
+      expect(
+        within(alertBanner).getByText(/New Emergency Incident Received \(2\)/i),
+      ).toBeInTheDocument()
+      expect(within(alertBanner).getByText(/CS-2026-SOS-1/i)).toBeInTheDocument()
+      expect(within(alertBanner).getByText(/CS-2026-SOS-2/i)).toBeInTheDocument()
+      expect(beepSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps muted alerts silent while displaying the visual alert banner', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled' | 'muted',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+      vi.spyOn(EmergencyAudioService.prototype, 'toggleMute').mockImplementation(() => {
+        status = status === 'muted' ? 'enabled' : 'muted'
+        return status === 'muted'
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+      screen.getByTestId('enable-sound-button').click()
+      await waitFor(() => {
+        expect(screen.getByTestId('mute-sound-button')).toBeInTheDocument()
+      })
+
+      // Mute sound
+      screen.getByTestId('mute-sound-button').click()
+      await waitFor(() => {
+        expect(screen.getByText(/sound alerts muted/i)).toBeInTheDocument()
+      })
+
+      routes['/incidents'] = {
+        body: {
+          items: [UNMAPPED_INCIDENT, EMERGENCY_INCIDENT],
+          pagination: { total: 2, limit: 100, offset: 0, returned: 2 },
+          mapping_available: false,
+        },
+      }
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('new-emergency-alert')).toBeInTheDocument()
+      })
+      expect(beepSpy).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('handles sound initialization failure gracefully without breaking the dashboard', async () => {
+    vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+    let status = 'uninitialized'
+    vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+      () => status as 'uninitialized' | 'blocked',
+    )
+    vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+      status = 'blocked'
+      return false
+    })
+
+    const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+    renderPage(routes)
+
+    expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+    const enableBtn = screen.getByTestId('enable-sound-button')
+    enableBtn.click()
+
+    await waitFor(() => {
+      expect(screen.getByText(/audio blocked by browser/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText('CS-2026-7QK4M2')).toBeInTheDocument()
+  })
+
+  it('cleans up polling timer on unmount', async () => {
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+    const routes = responderRoutes([UNMAPPED_INCIDENT])
+    const { unmount } = renderPage(routes)
+
+    expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+    unmount()
+
+    expect(clearIntervalSpy).toHaveBeenCalled()
+  })
+
+  it('triggers emergency beep and visual banner on ICC portal when emergency SOS arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const beepSpy = vi.spyOn(EmergencyAudioService.prototype, 'playEmergencyBeep')
+      vi.spyOn(EmergencyAudioService.prototype, 'isSupported').mockReturnValue(true)
+      let status = 'uninitialized'
+      vi.spyOn(EmergencyAudioService.prototype, 'getStatus').mockImplementation(
+        () => status as 'uninitialized' | 'enabled',
+      )
+      vi.spyOn(EmergencyAudioService.prototype, 'enable').mockImplementation(async () => {
+        status = 'enabled'
+        return true
+      })
+
+      const routes: Record<string, StubRoute> = responderRoutes([UNMAPPED_INCIDENT])
+      routes['/auth/me'] = { body: ICC_ACCOUNT }
+      renderPage(routes)
+
+      expect(await screen.findByText('CS-2026-7QK4M2')).toBeInTheDocument()
+      expect(beepSpy).not.toHaveBeenCalled()
+
+      screen.getByTestId('enable-sound-button').click()
+      await waitFor(() => {
+        expect(screen.getByText(/sound alerts on/i)).toBeInTheDocument()
+      })
+
+      const sosIncident: IncidentSummary = {
+        ...EMERGENCY_INCIDENT,
+        public_ref: 'CS-2026-ICC-SOS',
+        category: { category_id: 9, code: 'SOS_EMERGENCY', label: 'Emergency SOS' },
+      }
+
+      routes['/incidents'] = {
+        body: {
+          items: [UNMAPPED_INCIDENT, sosIncident],
+          pagination: { total: 2, limit: 100, offset: 0, returned: 2 },
+          mapping_available: false,
+        },
+      }
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('new-emergency-alert')).toBeInTheDocument()
+      })
+      expect(beepSpy).toHaveBeenCalledTimes(1)
+      expect(
+        within(screen.getByTestId('new-emergency-alert')).getByText(/CS-2026-ICC-SOS/i),
+      ).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

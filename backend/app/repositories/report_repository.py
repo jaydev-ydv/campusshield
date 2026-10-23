@@ -145,12 +145,16 @@ class ReportRepository:
             signal_latitude=resolved.signal_latitude,
             signal_longitude=resolved.signal_longitude,
             distance_m=resolved.distance_m,
+            signal_accuracy_m=resolved.signal_accuracy_m,
             signal_captured_at=resolved.signal_captured_at,
             conflict_note=resolved.conflict_note,
         )
         self._session.add(detail)
         self._session.flush()
         return detail
+
+    def get_location_detail(self, report_id: uuid.UUID) -> ReportLocationDetail | None:
+        return self._session.get(ReportLocationDetail, report_id)
 
     def record_initial_status(self, report_id: uuid.UUID) -> None:
         """Open the append-only status trail.
@@ -308,6 +312,7 @@ class ReportRepository:
             reporter_user_id=reporter_user_id,
             assigned_to_user_id=self._active_assignee(report.report_id),
             accessed_via_token=via_token,
+            is_emergency=bool(report.is_emergency),
         )
 
     def _active_assignee(self, report_id: uuid.UUID) -> uuid.UUID | None:

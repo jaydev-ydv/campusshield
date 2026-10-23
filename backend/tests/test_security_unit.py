@@ -17,6 +17,7 @@ from app.models.enums import UserRole
 from app.security.authorization import (
     ReportAccessContext,
     can_create_report,
+    can_manage_case,
     can_resolve_identity,
     can_view_narrative,
     can_view_report,
@@ -122,6 +123,19 @@ def test_report_with_no_category_is_not_visible_by_role_alone():
     ctx = context(routes_to_role=None)
     assert can_view_report(principal(UserRole.ICC), ctx) is False
     assert can_view_report(principal(UserRole.SECURITY), ctx) is False
+
+
+def test_emergency_report_is_visible_and_manageable_by_security_and_icc():
+    """Emergency reports route to security by default but must be visible and
+    manageable by both security and ICC so both portals receive alerts and can act."""
+    ctx = context(routes_to_role=UserRole.SECURITY, is_emergency=True, requires_confidentiality=False)
+    assert can_view_report(principal(UserRole.SECURITY), ctx) is True
+    assert can_view_report(principal(UserRole.ICC), ctx) is True
+    assert can_view_narrative(principal(UserRole.SECURITY), ctx) is True
+    assert can_view_narrative(principal(UserRole.ICC), ctx) is True
+    assert can_manage_case(principal(UserRole.SECURITY), ctx) is True
+    assert can_manage_case(principal(UserRole.ICC), ctx) is True
+    assert can_view_report(principal(UserRole.STUDENT), ctx) is False
 
 
 # ---------------------------------------------------------------------------

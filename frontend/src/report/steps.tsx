@@ -10,14 +10,17 @@
  * at a time is easier to answer than twelve at once, and it means a mistake is
  * caught next to the field that caused it.
  */
+import { useState } from 'react'
 import type { CampusLocation, ReportCategory } from '../lib/api'
 import { RELATIONSHIP_LABELS } from '../lib/api'
 import { Alert } from '../components/ui/Alert'
+import { Button } from '../components/ui/Button'
 import { ChoiceCards } from '../components/ui/ChoiceCard'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Spinner } from '../components/ui/Spinner'
 import { Textarea } from '../components/ui/Textarea'
+import { getEmergencyPosition } from '../lib/geolocation'
 import {
   LOCATION_HINT_MAX,
   NARRATIVE_MAX,
@@ -83,6 +86,67 @@ export function StepKind({ draft, errors, update }: StepProps) {
 /* -------------------------------------------------------------------------- */
 
 export function StepLocation({ draft, errors, update, locations }: StepProps) {
+  const [locating, setLocating] = useState(false)
+  const [gpsStatus, setGpsStatus] = useState<string | null>(null)
+
+  const handleUseGps = async () => {
+    setLocating(true)
+    setGpsStatus('Acquiring device GPS position…')
+    try {
+      const pos = await getEmergencyPosition(5000)
+      if (!pos) {
+        setGpsStatus('GPS location unavailable or permission denied.')
+        return
+      }
+
+      let nearest: CampusLocation | null = null
+      let minDist = Infinity
+
+      for (const loc of locations ?? []) {
+        if (loc.latitude !== null && loc.longitude !== null) {
+          const R = 6371000
+          const dLat = ((loc.latitude - pos.latitude) * Math.PI) / 180
+          const dLon = ((loc.longitude - pos.longitude) * Math.PI) / 180
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos((pos.latitude * Math.PI) / 180) *
+              Math.cos((loc.latitude * Math.PI) / 180) *
+              Math.sin(dLon / 2) *
+              Math.sin(dLon / 2)
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+          if (dist < minDist) {
+            minDist = dist
+            nearest = loc
+          }
+        }
+      }
+
+      if (nearest) {
+        update({
+          locationId: nearest.location_id,
+          locationHint:
+            draft.locationHint ||
+            `Near ${nearest.name} (GPS accuracy: ±${Math.round(pos.accuracy ?? 0)}m)`,
+        })
+        setGpsStatus(
+          `Detected nearest place: ${nearest.name} (~${Math.round(minDist)}m away, ±${Math.round(pos.accuracy ?? 0)}m accuracy).`,
+        )
+      } else {
+        const hintText = `GPS: ${pos.latitude.toFixed(6)}, ${pos.longitude.toFixed(6)} (±${Math.round(pos.accuracy ?? 0)}m)`
+        update({
+          locationHint: draft.locationHint ? `${draft.locationHint} · ${hintText}` : hintText,
+        })
+        setGpsStatus(
+          `GPS coordinates captured (±${Math.round(pos.accuracy ?? 0)}m accuracy). Select a campus location above.`,
+        )
+      }
+    } catch {
+      setGpsStatus('GPS location could not be determined.')
+    } finally {
+      setLocating(false)
+    }
+  }
+
   // An honest blocking state, not an error. `GET /locations` returns only
   // places whose coordinates have been verified, and none have been yet for this
   // campus. Inventing options would put reports at places that do not exist.
@@ -131,22 +195,41 @@ export function StepLocation({ draft, errors, update, locations }: StepProps) {
         />
       )}
 
-      <Select
-        label="Campus location"
-        placeholder={locations === null ? 'Loading locations…' : 'Select a location'}
-        value={draft.locationId ?? ''}
-        error={errors.locationId}
-        disabled={locations === null}
-        onChange={(e) =>
-          update({ locationId: e.target.value ? Number(e.target.value) : null })
-        }
-      >
-        {(locations ?? []).map((location) => (
-          <option key={location.location_id} value={location.location_id}>
-            {location.name}
-          </option>
-        ))}
-      </Select>
+      <div className="space-y-2">
+        <Select
+          label="Campus location"
+          placeholder={locations === null ? 'Loading locations…' : 'Select a location'}
+          value={draft.locationId ?? ''}
+          error={errors.locationId}
+          disabled={locations === null}
+          onChange={(e) =>
+            update({ locationId: e.target.value ? Number(e.target.value) : null })
+          }
+        >
+          {(locations ?? []).map((location) => (
+            <option key={location.location_id} value={location.location_id}>
+              {location.name}
+            </option>
+          ))}
+        </Select>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void handleUseGps()}
+            loading={locating}
+            disabled={locations === null || locating}
+          >
+            Use current GPS location
+          </Button>
+          {gpsStatus && (
+            <p role="status" className="text-ink-600 text-xs font-medium">
+              {gpsStatus}
+            </p>
+          )}
+        </div>
+      </div>
 
       <Input
         label="More detail about the place (optional)"

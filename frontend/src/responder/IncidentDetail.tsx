@@ -15,7 +15,11 @@ import {
   type ResolutionReason,
 } from '../lib/api'
 import { CaseLifecyclePanel } from './CaseLifecyclePanel'
-import { destinationDirections, type NavigationProvider } from './navigation'
+import {
+  destinationDirections,
+  googleMapsNavigationUrl,
+  type NavigationProvider,
+} from './navigation'
 import { EvidenceViewer } from './EvidenceViewer'
 import { TriagePanel } from './TriagePanel'
 
@@ -119,6 +123,27 @@ export function IncidentDetailPanel({
             <li key={line}>{line}</li>
           ))}
         </ul>
+        {incident.destination.is_gps &&
+          incident.destination.latitude !== null &&
+          incident.destination.longitude !== null && (
+            <div
+              data-testid="gps-emergency-details"
+              className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900"
+            >
+              <p className="font-semibold">GPS Emergency Location</p>
+              <p>
+                {incident.destination.latitude.toFixed(6)},{' '}
+                {incident.destination.longitude.toFixed(6)}
+                {incident.destination.accuracy_m !== null &&
+                  incident.destination.accuracy_m !== undefined && (
+                    <span> · Accuracy ±{Math.round(incident.destination.accuracy_m)}m</span>
+                  )}
+                {incident.destination.captured_at && (
+                  <span> · Captured {formatWhen(incident.destination.captured_at)}</span>
+                )}
+              </p>
+            </div>
+          )}
         {!incident.destination.is_mapped && (
           <p className="text-ink-500 text-xs">
             This location has no verified coordinate yet, so it cannot be opened in a map. Use
@@ -267,6 +292,23 @@ export function IncidentDetailPanel({
               Navigate to incident
             </Button>
           )}
+
+          {incident.destination.navigable &&
+            incident.destination.latitude !== null &&
+            incident.destination.longitude !== null && (
+              <a
+                href={googleMapsNavigationUrl(
+                  incident.destination.latitude,
+                  incident.destination.longitude,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="google-maps-navigation-link"
+                className="border-ink-300 hover:bg-ink-50 active:bg-ink-100 inline-flex min-h-11 items-center rounded-lg border bg-white px-4 py-2.5 text-sm font-medium text-ink-800 shadow-xs"
+              >
+                Open in Google Maps
+              </a>
+            )}
 
           {incident.dispatch === null ? (
             <Button

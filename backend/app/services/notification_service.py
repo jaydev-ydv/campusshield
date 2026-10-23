@@ -39,8 +39,10 @@ from __future__ import annotations
 import logging
 import uuid
 
-from ..models import Report
-from ..models.enums import NotificationCategory, ReportStatus, SubmissionMode
+from sqlalchemy import select
+
+from ..models import AppUser, Report
+from ..models.enums import NotificationCategory, ReportStatus, SubmissionMode, UserRole
 from ..repositories.notification_repository import NotificationRepository
 from ..repositories.report_repository import ReportRepository
 
@@ -100,6 +102,22 @@ class NotificationService:
             body=f"You have been assigned {report.public_ref}.",
             related_report_id=report.report_id,
         )
+
+    def notify_emergency(self, report: Report) -> None:
+        """Alert active security and ICC responders when an emergency SOS is submitted."""
+        stmt = select(AppUser.user_id).where(
+            AppUser.role.in_([UserRole.SECURITY, UserRole.ICC]),
+            AppUser.is_active.is_(True),
+        )
+        recipient_user_ids = list(self._notifications._session.scalars(stmt))
+        for user_id in recipient_user_ids:
+            self._notifications.create_for_user(
+                user_id,
+                category=NotificationCategory.ALERT,
+                title="Emergency SOS Alert",
+                body=f"Emergency SOS reported ({report.public_ref}).",
+                related_report_id=report.report_id,
+            )
 
     def _reporter_user_id(self, report: Report) -> uuid.UUID | None:
         context = self._reports.access_context(report)

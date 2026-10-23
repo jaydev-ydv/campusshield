@@ -71,6 +71,7 @@ class LocationSignal:
     longitude: float
     source: LocationSignalSource
     captured_at: datetime | None = None
+    accuracy: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +82,7 @@ class ResolvedLocation:
     source: LocationSignalSource
     signal_latitude: float | None = None
     signal_longitude: float | None = None
+    signal_accuracy_m: float | None = None
     distance_m: int | None = None
     signal_captured_at: datetime | None = None
     conflict_note: str | None = None
@@ -146,9 +148,22 @@ class LocationResolver:
 
         if surveyed is None:
             # The location has no verified coordinate, so there is nothing to
-            # compare against. This is where every report lands until the campus
-            # survey is done, and it is not a failure — the report is complete
-            # and correctly anchored; the map simply cannot draw it yet.
+            # compare against. For emergency SOS reports with real device GPS,
+            # preserve the GPS coordinates and accuracy. For ordinary reports with
+            # photo EXIF, photo coordinates remain withheld per privacy rules.
+            if signal is not None and signal.source is LocationSignalSource.DEVICE_GPS:
+                return ResolvedLocation(
+                    resolution=LocationResolution.UNRESOLVED,
+                    source=signal.source,
+                    signal_latitude=signal.latitude,
+                    signal_longitude=signal.longitude,
+                    signal_accuracy_m=signal.accuracy,
+                    signal_captured_at=signal.captured_at,
+                    conflict_note=(
+                        "Device GPS position recorded. This location has no verified "
+                        "surveyed coordinate yet, so no corroboration check could be made."
+                    ),
+                )
             return ResolvedLocation(
                 resolution=LocationResolution.UNRESOLVED,
                 source=LocationSignalSource.LOCATION_DEFAULT,
@@ -177,6 +192,7 @@ class LocationResolver:
                 source=signal.source,
                 signal_latitude=signal.latitude,
                 signal_longitude=signal.longitude,
+                signal_accuracy_m=signal.accuracy,
                 distance_m=distance_m,
                 signal_captured_at=signal.captured_at,
                 conflict_note=None,
@@ -187,6 +203,7 @@ class LocationResolver:
             source=signal.source,
             signal_latitude=signal.latitude,
             signal_longitude=signal.longitude,
+            signal_accuracy_m=signal.accuracy,
             distance_m=distance_m,
             signal_captured_at=signal.captured_at,
             conflict_note=self._conflict_note(location, signal, distance_m),

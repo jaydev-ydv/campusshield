@@ -37,6 +37,9 @@ export function ErrorState({ error, onRetry, title }: ErrorStateProps) {
     } else if (error.status === 403) {
       heading = title ?? 'Not available to you'
       body = 'Your account does not have access to this.'
+    } else if (error.status === 429) {
+      heading = title ?? 'Too many requests'
+      body = 'Request rate limit reached. Please wait a moment before trying again.'
     } else if (error.status >= 500) {
       heading = title ?? 'The service is having trouble'
       body = 'This is not something you did. Please try again shortly.'

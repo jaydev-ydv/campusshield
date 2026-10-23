@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import CampusLocation, ReportCategory, SystemPolicy
-from ..models.enums import ReportKind
+from ..models.enums import CoordinateStatus, ReportKind
 
 
 class LocationRepository:
@@ -14,12 +14,22 @@ class LocationRepository:
         self._session = session
 
     def list_active(self, *, location_type: str | None = None) -> list[CampusLocation]:
-        """Active locations only.
+        """Active and eligible provisionally-mapped campus locations.
 
-        A location is active only once its coordinates are verified and sourced,
-        so this can never hand a client a place with no position on the map.
+        A location is eligible when active (verified) or provisionally mapped
+        with valid coordinates, so un-surveyed locations without coordinates
+        are excluded while user-supplied campus locations are available.
         """
-        stmt = select(CampusLocation).where(CampusLocation.is_active.is_(True))
+        stmt = select(CampusLocation).where(
+            or_(
+                CampusLocation.is_active.is_(True),
+                and_(
+                    CampusLocation.coordinate_status == CoordinateStatus.PROVISIONAL,
+                    CampusLocation.latitude.isnot(None),
+                    CampusLocation.longitude.isnot(None),
+                ),
+            )
+        )
         if location_type:
             stmt = stmt.where(CampusLocation.location_type == location_type)
         return list(self._session.scalars(stmt.order_by(CampusLocation.name)))
@@ -28,7 +38,14 @@ class LocationRepository:
         return self._session.scalar(
             select(CampusLocation).where(
                 CampusLocation.location_id == location_id,
-                CampusLocation.is_active.is_(True),
+                or_(
+                    CampusLocation.is_active.is_(True),
+                    and_(
+                        CampusLocation.coordinate_status == CoordinateStatus.PROVISIONAL,
+                        CampusLocation.latitude.isnot(None),
+                        CampusLocation.longitude.isnot(None),
+                    ),
+                ),
             )
         )
 

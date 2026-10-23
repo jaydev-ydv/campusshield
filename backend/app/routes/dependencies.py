@@ -148,6 +148,7 @@ def report_service() -> ReportService:
             "location_corroboration_radius_m", 150
         ),
         triage=triage_service(),
+        notifications=notification_service(),
     )
 
 

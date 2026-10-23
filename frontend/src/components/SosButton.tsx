@@ -2,8 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth'
+import type { TriggerEmergencyPayload } from '../lib/api'
 import { ApiError } from '../lib/apiClient'
-import { getEmergencyPosition } from '../lib/geolocation'
+import {
+  checkGeolocationPermission,
+  getEmergencyPosition,
+  type LocationCaptureStatus,
+} from '../lib/geolocation'
 
 /**
  * The emergency ("SOS") trigger, visible on every authenticated page.
@@ -47,6 +52,8 @@ export function SosButton() {
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [locationStatus, setLocationStatus] = useState<LocationCaptureStatus>('idle')
+  const [reportedAccuracy, setReportedAccuracy] = useState<number | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const positionRef = useRef<ReturnType<typeof getEmergencyPosition> | null>(null)
@@ -61,6 +68,14 @@ export function SosButton() {
 
   useEffect(() => clearTimer, [clearTimer])
 
+  useEffect(() => {
+    void checkGeolocationPermission().then((perm) => {
+      if (perm === 'denied') {
+        setLocationStatus('denied')
+      }
+    })
+  }, [])
+
   const submit = useCallback(async () => {
     setPhase('submitting')
     setErrorMessage(null)
@@ -70,9 +85,15 @@ export function SosButton() {
       // beyond what the hold itself already gave it. Missing coordinates
       // are a normal, fully-supported outcome, not an error.
       const position = (await positionRef.current) ?? null
-      const result = await api.triggerEmergency(
-        position ? { latitude: position.latitude, longitude: position.longitude } : {},
-      )
+      const payload: TriggerEmergencyPayload = position
+        ? {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            accuracy: position.accuracy,
+            captured_at: position.captured_at,
+          }
+        : {}
+      const result = await api.triggerEmergency(payload)
       setPhase('idle')
       navigate('/emergency/submitted', { replace: false, state: { result } })
     } catch (cause) {
@@ -93,7 +114,10 @@ export function SosButton() {
     // Started now, in parallel with the hold, so a fix that arrives quickly
     // costs nothing — by the time the hold completes, it's often already
     // there.
-    positionRef.current = getEmergencyPosition()
+    positionRef.current = getEmergencyPosition(5000, (status, pos) => {
+      setLocationStatus(status)
+      if (pos?.accuracy) setReportedAccuracy(pos.accuracy)
+    })
     clearTimer()
     timerRef.current = setTimeout(() => {
       firedRef.current = true
@@ -123,6 +147,28 @@ export function SosButton() {
           className="max-w-64 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 shadow-sm"
         >
           {errorMessage}
+        </div>
+      )}
+
+      {locationStatus !== 'idle' && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={[
+            'max-w-64 rounded-full border px-3 py-1 text-xs shadow-sm transition-all backdrop-blur-xs',
+            locationStatus === 'denied'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : locationStatus === 'acquired'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-ink-200 bg-white/95 text-ink-700',
+          ].join(' ')}
+        >
+          {locationStatus === 'denied' && 'GPS denied · SOS will send without coordinates'}
+          {locationStatus === 'acquiring' && 'Acquiring GPS location…'}
+          {locationStatus === 'acquired' &&
+            `GPS acquired${reportedAccuracy ? ` (±${Math.round(reportedAccuracy)}m)` : ''}`}
+          {locationStatus === 'timeout' && 'GPS timed out · sending without coordinates'}
+          {locationStatus === 'unavailable' && 'GPS unavailable · sending without coordinates'}
         </div>
       )}
 

@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import type { Destination } from '../lib/api'
 import {
   GeoUriNavigationProvider,
+  GoogleMapsNavigationProvider,
   OpenStreetMapNavigationProvider,
   defaultNavigationProvider,
   destinationDirections,
+  googleMapsNavigationUrl,
 } from './navigation'
 
 function destination(overrides: Partial<Destination> = {}): Destination {
@@ -49,12 +51,25 @@ describe('navigation providers', () => {
     expect(target.url).toContain('mlat=12.5')
   })
 
+  it('builds a Google Maps navigation URL', () => {
+    const target = new GoogleMapsNavigationProvider().target(destination())
+    expect(target.url).toContain('google.com/maps/dir/')
+    expect(target.url).toContain('destination=12.5%2C77.5')
+  })
+
+  it('rejects invalid or out of range coordinates in googleMapsNavigationUrl', () => {
+    expect(() => googleMapsNavigationUrl(95, 77.5)).toThrow(/invalid navigation coordinates/i)
+    expect(() => googleMapsNavigationUrl(12.5, 185)).toThrow(/invalid navigation coordinates/i)
+    expect(() => googleMapsNavigationUrl(NaN, 77.5)).toThrow(/invalid navigation coordinates/i)
+  })
+
   it('returns no URL when the location has no verified coordinate', () => {
     // The state of every campus location today. A provider that invented a
     // centroid here would send a responder to the wrong building.
     for (const provider of [
       new GeoUriNavigationProvider(),
       new OpenStreetMapNavigationProvider(),
+      new GoogleMapsNavigationProvider(),
     ]) {
       const target = provider.target(unmapped)
       expect(target.url).toBeNull()

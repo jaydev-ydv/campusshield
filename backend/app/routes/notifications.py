@@ -18,13 +18,14 @@ import uuid
 from flask import Blueprint, jsonify, request
 
 from ..errors import MalformedRequestError, NotFoundError
-from ..extensions import db
+from ..extensions import db, limiter
 from ..schemas.requests import PaginationQuerySchema
 from ..schemas.responses import paginated, serialize_notification
 from ..security.context import authenticated, require_principal
 from .dependencies import notification_repository
 
 bp = Blueprint("notifications", __name__)
+limiter.exempt(bp)
 
 
 @bp.get("/notifications")

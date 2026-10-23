@@ -200,6 +200,8 @@ def trigger_emergency():
         principal,
         latitude=payload["latitude"],
         longitude=payload["longitude"],
+        accuracy=payload.get("accuracy"),
+        captured_at=payload.get("captured_at"),
         reporter_relationship=ReporterRelationship(payload["reporter_relationship"]),
     )
 

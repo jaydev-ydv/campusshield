@@ -13,6 +13,9 @@ rules are enforced by database constraints underneath both.
 
 from __future__ import annotations
 
+import math
+from datetime import datetime, timedelta, timezone
+
 from marshmallow import (
     EXCLUDE,
     RAISE,
@@ -25,6 +28,11 @@ from marshmallow import (
 )
 
 from ..models.enums import ReporterRelationship, ReportKind
+
+
+def _validate_finite(value: float) -> None:
+    if value is not None and not math.isfinite(value):
+        raise ValidationError("Value must be a finite number.")
 
 
 class _Strict(Schema):
@@ -117,10 +125,23 @@ class TriggerEmergencySchema(_Strict):
     """
 
     latitude = fields.Float(
-        load_default=None, allow_none=True, validate=validate.Range(min=-90, max=90)
+        load_default=None,
+        allow_none=True,
+        validate=[validate.Range(min=-90, max=90), _validate_finite],
     )
     longitude = fields.Float(
-        load_default=None, allow_none=True, validate=validate.Range(min=-180, max=180)
+        load_default=None,
+        allow_none=True,
+        validate=[validate.Range(min=-180, max=180), _validate_finite],
+    )
+    accuracy = fields.Float(
+        load_default=None,
+        allow_none=True,
+        validate=[validate.Range(min=0), _validate_finite],
+    )
+    captured_at = fields.DateTime(
+        load_default=None,
+        allow_none=True,
     )
     reporter_relationship = fields.String(
         load_default=ReporterRelationship.AFFECTED.value,
@@ -143,6 +164,25 @@ class TriggerEmergencySchema(_Strict):
                 "latitude and longitude must both be present or both be omitted.",
                 field_name="longitude" if has_lat else "latitude",
             )
+        if not has_lat and data.get("accuracy") is not None:
+            data["accuracy"] = None
+
+        captured_at = data.get("captured_at")
+        if captured_at is not None:
+            if captured_at.tzinfo is None:
+                captured_at = captured_at.replace(tzinfo=timezone.utc)
+                data["captured_at"] = captured_at
+            now = datetime.now(timezone.utc)
+            if captured_at > now + timedelta(seconds=120):
+                raise ValidationError(
+                    "Location timestamp cannot be in the future.",
+                    field_name="captured_at",
+                )
+            if captured_at < now - timedelta(days=7):
+                raise ValidationError(
+                    "Location timestamp is too old.",
+                    field_name="captured_at",
+                )
 
 
 class AttachEvidenceSchema(_Strict):

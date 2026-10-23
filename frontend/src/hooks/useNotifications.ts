@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { useAuth } from '../auth/useAuth'
 
-const POLL_INTERVAL_MS = 45_000
+const POLL_INTERVAL_MS = 10_000
 
 /**
  * The caller's unread notification count, refreshed on an interval.

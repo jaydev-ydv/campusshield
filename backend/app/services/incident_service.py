@@ -29,8 +29,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from ..errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
-from ..models import CampusLocation, CaseStatusHistory, EmergencyDispatch
-from ..models.enums import CoordinateStatus, DispatchState, ReportStatus, UserRole
+from ..models import CampusLocation, CaseStatusHistory, EmergencyDispatch, ReportLocationDetail
+from ..models.enums import (
+    CoordinateStatus,
+    DispatchState,
+    LocationSignalSource,
+    ReportStatus,
+    UserRole,
+)
 from ..repositories.incident_repository import IncidentRepository, IncidentRow
 from ..repositories.report_repository import ReportRepository
 from ..security.authorization import can_view_narrative, can_view_report
@@ -92,14 +98,16 @@ class Destination:
     zone_name: str | None
     location_hint: str | None
     is_synthetic: bool
+    is_gps: bool = False
+    accuracy_m: float | None = None
+    captured_at: datetime | None = None
 
     @property
     def navigable(self) -> bool:
         """Whether an external map can be handed a point.
 
-        False for every location today. `CAMPUS_LOCATIONS.md` records zero
-        verified coordinates, and this returns the honest answer rather than a
-        campus centroid that would send a responder to the wrong building.
+        False for every location today unless verified coordinates or device GPS
+        coordinates were captured.
         """
         return self.latitude is not None and self.longitude is not None
 
@@ -205,7 +213,9 @@ class IncidentService:
 
         return IncidentDetail(
             row=row,
-            destination=self.destination_for(row.location, report.location_hint),
+            destination=self.destination_for(
+                row.location, report.location_hint, row.location_detail
+            ),
             narrative=narrative_text,
             narrative_available=may_read,
             narrative_withheld_reason=withheld,
@@ -245,18 +255,52 @@ class IncidentService:
     # -- destination -------------------------------------------------------
 
     @staticmethod
-    def destination_for(location: CampusLocation, location_hint: str | None = None) -> Destination:
-        """Turn the selected campus location into somewhere a responder can go.
+    def destination_for(
+        location: CampusLocation,
+        location_hint: str | None = None,
+        location_detail: ReportLocationDetail | None = None,
+    ) -> Destination:
+        """Turn the selected campus location or real GPS signal into somewhere a responder can go.
 
-        A coordinate is offered only when it is `verified`. `provisional` is
-        treated as unmapped on purpose: a provisional coordinate is one nobody has
-        stood at, and routing a responder to it during an emergency is worse than
-        telling them plainly that the point is not surveyed yet.
-
-        `dispatch_note` and `location_hint` are what make the last hundred metres
-        work. A pin on a building is not the same as knowing to use the service
-        entrance and take the lift to level two.
+        A coordinate is offered when the location is `verified`, or when a device GPS
+        position was captured during an emergency SOS report.
         """
+        if (
+            location_detail is not None
+            and location_detail.source is LocationSignalSource.DEVICE_GPS
+            and location_detail.signal_latitude is not None
+            and location_detail.signal_longitude is not None
+        ):
+            lat = float(location_detail.signal_latitude)
+            lon = float(location_detail.signal_longitude)
+            acc = (
+                float(location_detail.signal_accuracy_m)
+                if location_detail.signal_accuracy_m is not None
+                else None
+            )
+            name = (
+                "Reporter Device GPS Position"
+                if location.code == "SYS-UNSPECIFIED"
+                else f"{location.name} (Device GPS)"
+            )
+            return Destination(
+                location_id=location.location_id,
+                code=location.code,
+                name=name,
+                latitude=lat,
+                longitude=lon,
+                is_mapped=True,
+                location_type="device_gps",
+                is_indoor=location.is_indoor,
+                dispatch_note=location.dispatch_note,
+                zone_name=location.zone.name if location.zone else None,
+                location_hint=location_hint,
+                is_synthetic=False,
+                is_gps=True,
+                accuracy_m=acc,
+                captured_at=location_detail.signal_captured_at,
+            )
+
         mapped = (
             location.coordinate_status is CoordinateStatus.VERIFIED
             and location.latitude is not None
@@ -266,11 +310,6 @@ class IncidentService:
             location_id=location.location_id,
             code=location.code,
             name=location.name,
-            # `is not None`, not truthiness: a coordinate of exactly 0.0 (a
-            # legitimate point on the equator, and the value this project's
-            # own synthetic test fixtures use) is falsy in Python, and the
-            # previous `and location.latitude` check silently turned a
-            # genuinely verified location into an unmapped one.
             latitude=float(location.latitude) if mapped and location.latitude is not None else None,
             longitude=(
                 float(location.longitude) if mapped and location.longitude is not None else None
@@ -282,6 +321,9 @@ class IncidentService:
             zone_name=location.zone.name if location.zone else None,
             location_hint=location_hint,
             is_synthetic=location.is_synthetic,
+            is_gps=False,
+            accuracy_m=None,
+            captured_at=None,
         )
 
     # -- dispatch ----------------------------------------------------------

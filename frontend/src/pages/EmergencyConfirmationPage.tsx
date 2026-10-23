@@ -124,11 +124,32 @@ export function EmergencyConfirmationPage() {
 
         <Card as="section">
           <h2 className="text-ink-900 text-base font-semibold">Location</h2>
-          <p className="text-ink-700 mt-2 text-sm leading-relaxed">
-            {result.location.code === 'SYS-UNSPECIFIED'
-              ? 'No location could be determined automatically. Security has been alerted without one — call them directly with your location if you can.'
-              : `Recorded near ${result.location.name}.`}
-          </p>
+          {result.location_status === 'gps_captured' || result.coordinates ? (
+            <div className="mt-2 space-y-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Real-time GPS location captured
+              </span>
+              <p className="text-ink-700 text-sm leading-relaxed">
+                Coordinates: {result.coordinates?.latitude.toFixed(6)},{' '}
+                {result.coordinates?.longitude.toFixed(6)}
+                {result.coordinates?.accuracy_m
+                  ? ` (Accuracy: ±${Math.round(result.coordinates.accuracy_m)}m)`
+                  : ''}
+                . Campus security has been alerted with your real-time coordinates.
+              </p>
+            </div>
+          ) : result.location.code === 'SYS-UNSPECIFIED' ||
+            result.location_status === 'unavailable' ? (
+            <p className="text-ink-700 mt-2 text-sm leading-relaxed">
+              No location could be determined automatically. Security has been alerted without
+              one — call them directly with your location if you can.
+            </p>
+          ) : (
+            <p className="text-ink-700 mt-2 text-sm leading-relaxed">
+              Recorded near {result.location.name}.
+            </p>
+          )}
         </Card>
 
         <Card as="section">

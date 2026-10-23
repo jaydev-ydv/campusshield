@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from ..models import CampusLocation, Report, ReportCategory
-from ..models.enums import CoordinateStatus
+from ..models.enums import CoordinateStatus, LocationSignalSource
 from ..services.case_service import AssignmentView
 from ..services.health_service import DatabaseHealth
 from ..services.incident_service import Destination
@@ -72,6 +72,11 @@ def serialize_location(location: CampusLocation) -> dict[str, Any]:
         ),
         "latitude": _decimal(location.latitude),
         "longitude": _decimal(location.longitude),
+        "coordinate_status": (
+            location.coordinate_status.value
+            if hasattr(location.coordinate_status, "value")
+            else str(location.coordinate_status)
+        ),
         "is_indoor": location.is_indoor,
         "dispatch_note": location.dispatch_note,
         # Demo/development fixture, never a real surveyed location — see
@@ -163,6 +168,16 @@ def serialize_submission(result: SubmissionResult) -> dict[str, Any]:
             "it is shown once, and it cannot be recovered — the report is not linked "
             "to your account. You will not receive notifications about it."
         )
+    if result.location_status:
+        body["location_status"] = result.location_status
+    if result.location_detail and result.location_detail.signal_latitude is not None:
+        body["coordinates"] = {
+            "latitude": _decimal(result.location_detail.signal_latitude),
+            "longitude": _decimal(result.location_detail.signal_longitude),
+            "accuracy_m": _decimal(result.location_detail.signal_accuracy_m),
+            "captured_at": _iso(result.location_detail.signal_captured_at),
+            "source": result.location_detail.source.value,
+        }
     return body
 
 
@@ -233,26 +248,34 @@ def serialize_destination(destination: Destination) -> dict[str, Any]:
         "location_hint": destination.location_hint,
         # Demo/development fixture, never a real surveyed destination.
         "is_synthetic": destination.is_synthetic,
+        "is_gps": destination.is_gps,
+        "accuracy_m": destination.accuracy_m,
+        "captured_at": (destination.captured_at.isoformat() if destination.captured_at else None),
     }
 
 
 def serialize_location_signal(detail) -> dict[str, Any] | None:
     """How a corroborating signal compared with the selected campus location.
 
-    The coordinate the signal carried is **not** included. A responder needs to
-    know that a photograph's location data disagrees and by roughly how far —
-    which the note and the distance give them — not the coordinate itself, which
-    is the reporter's position and has no operational use.
+    For responders, includes GPS coordinates and accuracy when available from device GPS (SOS).
+    Photo EXIF coordinates are withheld to preserve reporter privacy on ordinary reports.
     """
     if detail is None:
         return None
-    return {
+    data: dict[str, Any] = {
         "resolution": detail.resolution.value,
         "source": detail.source.value,
         "distance_m": detail.distance_m,
         "signal_captured_at": _iso(detail.signal_captured_at),
         "note": detail.conflict_note,
     }
+    if detail.source is LocationSignalSource.DEVICE_GPS:
+        if detail.signal_latitude is not None and detail.signal_longitude is not None:
+            data["signal_latitude"] = float(detail.signal_latitude)
+            data["signal_longitude"] = float(detail.signal_longitude)
+        if detail.signal_accuracy_m is not None:
+            data["accuracy_m"] = float(detail.signal_accuracy_m)
+    return data
 
 
 def serialize_dispatch(dispatch) -> dict[str, Any] | None:
@@ -364,6 +387,11 @@ def serialize_incident_summary(row) -> dict[str, Any]:
             "is_mapped": (
                 row.location.coordinate_status is CoordinateStatus.VERIFIED
                 and row.location.latitude is not None
+            ),
+            "coordinate_status": (
+                row.location.coordinate_status.value
+                if hasattr(row.location.coordinate_status, "value")
+                else str(row.location.coordinate_status)
             ),
             # Demo/development fixture, never a real surveyed location.
             "is_synthetic": row.location.is_synthetic,

@@ -43,6 +43,7 @@ class ReportAccessContext:
     reporter_user_id: uuid.UUID | None
     assigned_to_user_id: uuid.UUID | None
     accessed_via_token: bool = False
+    is_emergency: bool = False
 
 
 def is_reporter(principal: Principal | None, ctx: ReportAccessContext) -> bool:
@@ -82,6 +83,8 @@ def can_view_report(principal: Principal | None, ctx: ReportAccessContext) -> bo
     if principal.role is UserRole.ADMIN:
         # Metadata only — see can_view_narrative.
         return True
+    if ctx.is_emergency and principal.role in (UserRole.SECURITY, UserRole.ICC):
+        return True
     return ctx.routes_to_role is not None and principal.role is ctx.routes_to_role
 
 
@@ -107,6 +110,8 @@ def can_view_narrative(principal: Principal | None, ctx: ReportAccessContext) ->
         return True
     if ctx.requires_confidentiality:
         return principal.role is UserRole.ICC
+    if ctx.is_emergency and principal.role in (UserRole.SECURITY, UserRole.ICC):
+        return True
     return ctx.routes_to_role is not None and principal.role is ctx.routes_to_role
 
 
@@ -133,6 +138,8 @@ def can_manage_case(principal: Principal | None, ctx: ReportAccessContext) -> bo
     if principal.role is UserRole.ADMIN:
         return False
     if ctx.assigned_to_user_id is not None and principal.user_id == ctx.assigned_to_user_id:
+        return True
+    if ctx.is_emergency and principal.role in (UserRole.SECURITY, UserRole.ICC):
         return True
     return ctx.routes_to_role is not None and principal.role is ctx.routes_to_role
 

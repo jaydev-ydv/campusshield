@@ -106,6 +106,24 @@ describe('EmergencyConfirmationPage', () => {
     expect(await screen.findByText(/recorded near library/i)).toBeInTheDocument()
   })
 
+  it('displays real-time GPS coordinates and accuracy when captured', async () => {
+    const gpsResult = {
+      ...SOS_RESULT,
+      location_status: 'gps_captured',
+      coordinates: {
+        latitude: 12.9716,
+        longitude: 77.5946,
+        accuracy_m: 14.5,
+        captured_at: '2026-08-14T12:00:00Z',
+        source: 'device_gps',
+      },
+    }
+    renderConfirmation({ result: gpsResult })
+    expect(await screen.findByText(/real-time gps location captured/i)).toBeInTheDocument()
+    expect(screen.getByText(/12.971600, 77.594600/)).toBeInTheDocument()
+    expect(screen.getByText(/accuracy: ±15m/i)).toBeInTheDocument()
+  })
+
   it('never mentions an access token — the emergency path is always identified', async () => {
     renderConfirmation({ result: SOS_RESULT })
     await screen.findByRole('heading', { name: /your emergency alert has been sent/i })
